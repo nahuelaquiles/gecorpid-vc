@@ -1,0 +1,17 @@
+﻿{
+  "@context": ["https://www.w3.org/ns/did/v1","https://w3id.org/security/suites/jws-2020/v1"],
+  "id": "did:web:gecorpid.com",
+  "verificationMethod": [
+    {
+      "id": "did:web:gecorpid.com#key-1",
+      "type": "JsonWebKey2020",
+      "controller": "did:web:gecorpid.com",
+      "publicKeyJwk": {"crv": "Ed25519",
+  "x": "h2MITeSYag8X-MImIzcPUUByZ3dcABTbJXkOk9hSUdU",
+  "kty": "OKP",
+  "alg": "EdDSA",
+  "use": "sig"}
+    }
+  ],
+  "assertionMethod": ["did:web:gecorpid.com#key-1"]
+}
