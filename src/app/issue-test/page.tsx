@@ -22,8 +22,8 @@ export default function IssueTest() {
       });
       const j = await r.json();
       setMsg(JSON.stringify(j, null, 2));
-    } catch (e:any) {
-      setMsg(String(e?.message||e));
+    } catch (e: unknown) {
+      setMsg(e instanceof Error ? e.message : String(e));
     }
   }
 

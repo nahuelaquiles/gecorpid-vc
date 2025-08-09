@@ -3,8 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 
 async function requireAdmin() {
   const isAdmin = cookies().get('admin')?.value === 'ok';
-  if (!isAdmin) return false;
-  return true;
+  return !!isAdmin;
 }
 
 export default async function AdminPage() {
@@ -68,23 +67,24 @@ export default async function AdminPage() {
 }
 
 function CreateTenantForm() {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const name = String(fd.get('name') || '');
+    const initialCredits = Number(fd.get('initialCredits') || 0);
+
+    const r = await fetch('/api/admin/create-tenant', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name, initialCredits }),
+    });
+    const j = await r.json();
+    if (r.ok) { alert(`Tenant creado.\nAPI Key: ${j.apiKey}`); window.location.reload(); }
+    else { alert(j.error || 'Error'); }
+  };
+
   return (
-    <form
-      className="flex gap-2 items-center"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        const name = (e.currentTarget as any).name.value;
-        const initialCredits = Number((e.currentTarget as any).initialCredits.value || '0');
-        const r = await fetch('/api/admin/create-tenant', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ name, initialCredits }),
-        });
-        const j = await r.json();
-        if (r.ok) { alert(`Tenant creado.\nAPI Key: ${j.apiKey}`); window.location.reload(); }
-        else { alert(j.error || 'Error'); }
-      }}
-    >
+    <form className="flex gap-2 items-center" onSubmit={handleSubmit}>
       <input name="name" placeholder="Nombre" className="border rounded p-2" required />
       <input name="initialCredits" type="number" placeholder="Créditos iniciales" className="border rounded p-2 w-40" />
       <button className="border rounded px-3 py-2">Crear</button>
@@ -93,22 +93,23 @@ function CreateTenantForm() {
 }
 
 function AddCreditsForm({ tenantId }: { tenantId: string }) {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const amount = Number(fd.get('amount') || 0);
+
+    const r = await fetch('/api/admin/add-credits', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ tenantId, amount }),
+    });
+    const j = await r.json();
+    if (r.ok) { alert(`Créditos ahora: ${j.credits}`); window.location.reload(); }
+    else { alert(j.error || 'Error'); }
+  };
+
   return (
-    <form
-      className="flex gap-2 items-center"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        const amount = Number((e.currentTarget as any).amount.value || '0');
-        const r = await fetch('/api/admin/add-credits', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ tenantId, amount }),
-        });
-        const j = await r.json();
-        if (r.ok) { alert(`Créditos ahora: ${j.credits}`); window.location.reload(); }
-        else { alert(j.error || 'Error'); }
-      }}
-    >
+    <form className="flex gap-2 items-center" onSubmit={handleSubmit}>
       <input name="amount" type="number" placeholder="+/-" className="border rounded p-2 w-28" />
       <button className="border rounded px-3 py-2">Actualizar</button>
     </form>

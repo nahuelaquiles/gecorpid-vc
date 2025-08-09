@@ -76,8 +76,8 @@ export async function POST(req: NextRequest) {
       exp,
       remaining_credits: (credits - 1),
     });
-  } catch (err: any) {
-    const msg = String(err?.message || err);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
     const status = msg.includes('NO_CREDITS') ? 402 : 500;
     return NextResponse.json({ error: msg }, { status });
   }

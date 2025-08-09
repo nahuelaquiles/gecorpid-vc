@@ -7,7 +7,7 @@ const KID = process.env.VC_KID!;
 export type IssueVcInput = {
   subjectId: string;
   vcType?: string[];
-  claims?: Record<string, any>;
+  claims?: Record<string, unknown>; // <- sin "any"
   expiresInDays?: number;
 };
 
@@ -39,3 +39,4 @@ export async function signVC({ subjectId, vcType = [], claims = {}, expiresInDay
 
   return { jwt, jti, exp };
 }
+
