@@ -10,8 +10,6 @@ declare module "qrcode" {
       color?: { dark?: string; light?: string };
     }
   ): Promise<string>;
-  const _default: {
-    toDataURL: typeof toDataURL;
-  };
+  const _default: { toDataURL: typeof toDataURL };
   export default _default;
 }
