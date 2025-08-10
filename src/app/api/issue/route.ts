@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 const BodySchema = z.object({
   subjectId: z.string().min(1),
   vcType: z.array(z.string()).optional(),
-  // FIX: record requiere (keySchema, valueSchema)
+  // record requiere (keySchema, valueSchema)
   claims: z.record(z.string(), z.any()).optional(),
   expiresInDays: z.number().int().positive().optional(),
 });
@@ -74,10 +74,9 @@ export async function POST(req: NextRequest) {
       .sign(key);
 
     return Response.json({ jwt, vc });
-  } catch (err: any) {
-    return Response.json(
-      { error: err?.message ?? "Error desconocido en /api/issue" },
-      { status: 500 }
-    );
+  } catch (err: unknown) {
+    const message =
+      err instanceof Error ? err.message : "Error desconocido en /api/issue";
+    return Response.json({ error: message }, { status: 500 });
   }
 }
