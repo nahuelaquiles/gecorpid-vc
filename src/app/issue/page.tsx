@@ -2,6 +2,14 @@
 
 import { useState } from 'react';
 
+type VC = {
+  "@context": string[];
+  type: string[];
+  issuer: string;
+  issuanceDate: string;
+  credentialSubject: Record<string, unknown>;
+};
+
 export default function IssuePage() {
   const [subjectId, setSubjectId] = useState('did:key:z6MkZSubject');
   const [givenName, setGivenName] = useState('María');
@@ -9,10 +17,10 @@ export default function IssuePage() {
   const [email, setEmail] = useState('maria@example.com');
   const [loading, setLoading] = useState(false);
   const [jwt, setJwt] = useState('');
-  const [vc, setVc] = useState<any>(null);
+  const [vc, setVc] = useState<VC | null>(null);
   const [error, setError] = useState('');
 
-  async function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
     setError('');
@@ -27,12 +35,15 @@ export default function IssuePage() {
           claims: { givenName, familyName, email }
         })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || 'Error emitiendo VC');
+      const data: { jwt?: string; vc?: VC; error?: string } = await res.json();
+      if (!res.ok || !data.jwt || !data.vc) {
+        throw new Error(data?.error ?? 'Error emitiendo VC');
+      }
       setJwt(data.jwt);
       setVc(data.vc);
-    } catch (err: any) {
-      setError(err?.message || 'Error desconocido');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error desconocido';
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -89,8 +100,9 @@ export default function IssuePage() {
               <h2 className="text-sm font-medium mb-2">JWT</h2>
               <textarea readOnly className="w-full h-40 text-xs bg-gray-100 p-3 rounded">{jwt}</textarea>
               <div className="mt-2 text-xs">
-                Abrir verificación: <a className="underline text-blue-600"
-                  href={`/verify?jwt=${encodeURIComponent(jwt)}`}>/verify?jwt=…</a>
+                Abrir verificación:{' '}
+                <a className="underline text-blue-600"
+                   href={`/verify?jwt=${encodeURIComponent(jwt)}`}>/verify?jwt=…</a>
               </div>
             </div>
           </>
