@@ -36,14 +36,11 @@ export default function IssuePage() {
         })
       });
       const data: { jwt?: string; vc?: VC; error?: string } = await res.json();
-      if (!res.ok || !data.jwt || !data.vc) {
-        throw new Error(data?.error ?? 'Error emitiendo VC');
-      }
+      if (!res.ok || !data.jwt || !data.vc) throw new Error(data?.error ?? 'Error emitiendo VC');
       setJwt(data.jwt);
       setVc(data.vc);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Error desconocido';
-      setError(msg);
+      setError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
       setLoading(false);
     }
@@ -57,31 +54,26 @@ export default function IssuePage() {
         <form onSubmit={onSubmit} className="grid gap-3">
           <label className="grid gap-1">
             <span className="text-sm font-medium">Subject DID</span>
-            <input className="border rounded px-3 py-2" value={subjectId}
-                   onChange={e=>setSubjectId(e.target.value)} required />
+            <input className="border rounded px-3 py-2" value={subjectId} onChange={e=>setSubjectId(e.target.value)} required />
           </label>
 
           <div className="grid md:grid-cols-2 gap-3">
             <label className="grid gap-1">
               <span className="text-sm font-medium">Nombre</span>
-              <input className="border rounded px-3 py-2" value={givenName}
-                     onChange={e=>setGivenName(e.target.value)} required />
+              <input className="border rounded px-3 py-2" value={givenName} onChange={e=>setGivenName(e.target.value)} required />
             </label>
             <label className="grid gap-1">
               <span className="text-sm font-medium">Apellido</span>
-              <input className="border rounded px-3 py-2" value={familyName}
-                     onChange={e=>setFamilyName(e.target.value)} required />
+              <input className="border rounded px-3 py-2" value={familyName} onChange={e=>setFamilyName(e.target.value)} required />
             </label>
           </div>
 
           <label className="grid gap-1">
             <span className="text-sm font-medium">Email</span>
-            <input type="email" className="border rounded px-3 py-2" value={email}
-                   onChange={e=>setEmail(e.target.value)} required />
+            <input type="email" className="border rounded px-3 py-2" value={email} onChange={e=>setEmail(e.target.value)} required />
           </label>
 
-          <button disabled={loading}
-                  className="rounded-xl bg-black text-white px-4 py-2 disabled:opacity-60">
+          <button disabled={loading} className="rounded-xl bg-black text-white px-4 py-2 disabled:opacity-60">
             {loading ? 'Firmando…' : 'Emitir'}
           </button>
         </form>
@@ -92,17 +84,14 @@ export default function IssuePage() {
           <>
             <div>
               <h2 className="text-sm font-medium mb-2">VC (payload)</h2>
-              <pre className="text-xs bg-gray-100 p-3 rounded overflow-auto">
-                {JSON.stringify(vc, null, 2)}
-              </pre>
+              <pre className="text-xs bg-gray-100 p-3 rounded overflow-auto">{JSON.stringify(vc, null, 2)}</pre>
             </div>
             <div>
               <h2 className="text-sm font-medium mb-2">JWT</h2>
               <textarea readOnly className="w-full h-40 text-xs bg-gray-100 p-3 rounded">{jwt}</textarea>
               <div className="mt-2 text-xs">
                 Abrir verificación:{' '}
-                <a className="underline text-blue-600"
-                   href={`/verify?jwt=${encodeURIComponent(jwt)}`}>/verify?jwt=…</a>
+                <a className="underline text-blue-600" href={`/verify?jwt=${encodeURIComponent(jwt)}`}>/verify?jwt=…</a>
               </div>
             </div>
           </>
