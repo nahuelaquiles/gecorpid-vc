@@ -1,84 +1,83 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
-import { supabaseAdmin } from '@/lib/supabase';
-import { signVC } from '@/lib/jose';
+// src/app/api/issue/route.ts
+import { NextRequest } from "next/server";
+import { z } from "zod";
+import { SignJWT, importJWK, JWK } from "jose";
 
+export const runtime = "nodejs";
+
+// Esquema de entrada
 const BodySchema = z.object({
   subjectId: z.string().min(1),
   vcType: z.array(z.string()).optional(),
-  claims: z.record(z.any()).optional(),
+  // FIX: record requiere (keySchema, valueSchema)
+  claims: z.record(z.string(), z.any()).optional(),
   expiresInDays: z.number().int().positive().optional(),
 });
 
-async function getTenantByApiKey(apiKey: string) {
-  const { data, error } = await supabaseAdmin
-    .from('tenants')
-    .select('*')
-    .eq('api_key', apiKey)
-    .eq('is_active', true)
-    .maybeSingle();
-  if (error) throw error;
-  return data;
-}
-
-async function getCredits(tenant_id: string) {
-  const { data, error } = await supabaseAdmin
-    .from('tenant_credits')
-    .select('credits')
-    .eq('tenant_id', tenant_id)
-    .maybeSingle();
-  if (error) throw error;
-  return data?.credits ?? 0;
-}
-
 export async function POST(req: NextRequest) {
   try {
-    const apiKey = req.headers.get('x-api-key');
-    if (!apiKey) return NextResponse.json({ error: 'Missing x-api-key' }, { status: 401 });
-
-    const tenant = await getTenantByApiKey(apiKey);
-    if (!tenant) return NextResponse.json({ error: 'Invalid tenant or inactive' }, { status: 401 });
-
-    const body = await req.json();
-    const parsed = BodySchema.safeParse(body);
-    if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
-
-    const credits = await getCredits(tenant.id);
-    if (credits <= 0) return NextResponse.json({ error: 'No credits left' }, { status: 402 });
-
-    const { jwt, jti, exp } = await signVC({
-      subjectId: parsed.data.subjectId,
-      vcType: parsed.data.vcType,
-      claims: parsed.data.claims,
-      expiresInDays: parsed.data.expiresInDays,
-    });
-
-    const { error: decErr } = await supabaseAdmin.rpc('decrement_credit', { p_tenant_id: tenant.id });
-    if (decErr) {
-      const msg = String(decErr.message || '');
-      const status = msg.includes('NO_CREDITS') ? 402 : 500;
-      return NextResponse.json({ error: msg }, { status });
+    const json = await req.json();
+    const parsed = BodySchema.safeParse(json);
+    if (!parsed.success) {
+      return Response.json(
+        { error: "Body inválido", details: parsed.error.flatten() },
+        { status: 400 }
+      );
     }
 
-    await supabaseAdmin.from('vc_issuance_log').insert({
-      tenant_id: tenant.id,
-      vc_jti: jti,
-      subject_id: parsed.data.subjectId,
-      vc_type: parsed.data.vcType ?? [],
-    });
+    const { subjectId, vcType, claims, expiresInDays } = parsed.data;
 
-    const base = process.env.NEXT_PUBLIC_BASE_URL || '';
-    const verifyUrl = `${base}/verify?vc=${encodeURIComponent(jwt)}`;
+    const ISSUER_DID = process.env.ISSUER_DID || "did:web:gecorpid.com";
+    const ISSUER_KID = process.env.ISSUER_KID || `${ISSUER_DID}#key-1`;
+    const PRIVATE_JWK_RAW = process.env.ISSUER_PRIVATE_JWK;
 
-    return NextResponse.json({
-      vc_jwt: jwt,
-      verify_url: verifyUrl,
-      exp,
-      remaining_credits: (credits - 1),
-    });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    const status = msg.includes('NO_CREDITS') ? 402 : 500;
-    return NextResponse.json({ error: msg }, { status });
+    if (!PRIVATE_JWK_RAW) {
+      return Response.json(
+        { error: "Falta la variable de entorno ISSUER_PRIVATE_JWK." },
+        { status: 500 }
+      );
+    }
+
+    let privateJwk: JWK;
+    try {
+      privateJwk = JSON.parse(PRIVATE_JWK_RAW);
+    } catch {
+      return Response.json(
+        { error: "ISSUER_PRIVATE_JWK no es JSON válido." },
+        { status: 500 }
+      );
+    }
+
+    const key = await importJWK(privateJwk, "EdDSA");
+
+    const now = Math.floor(Date.now() / 1000);
+    const expDays = expiresInDays ?? 365;
+
+    // VC mínima en payload JWT (formato VC-JWT)
+    const vc = {
+      "@context": ["https://www.w3.org/ns/credentials/v2"],
+      type: ["VerifiableCredential", ...(vcType ?? ["BasicIDCredential"])],
+      issuer: ISSUER_DID,
+      issuanceDate: new Date(now * 1000).toISOString(),
+      credentialSubject: {
+        id: subjectId,
+        ...(claims ?? {}),
+      },
+    };
+
+    const jwt = await new SignJWT({ vc })
+      .setProtectedHeader({ alg: "EdDSA", kid: ISSUER_KID })
+      .setIssuedAt(now)
+      .setIssuer(ISSUER_DID)
+      .setSubject(subjectId)
+      .setExpirationTime(`${expDays}d`)
+      .sign(key);
+
+    return Response.json({ jwt, vc });
+  } catch (err: any) {
+    return Response.json(
+      { error: err?.message ?? "Error desconocido en /api/issue" },
+      { status: 500 }
+    );
   }
 }
