@@ -1,78 +1,78 @@
 'use client';
-/* eslint-disable @next/next/no-img-element */
 
-import { Suspense, useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
-import QRCode from 'qrcode';
-
-// Fuerza render dinámico (sin prerender/SSG)
-export const dynamic = 'force-dynamic';
+import React, { useState } from 'react';
 
 export default function VerifyPage() {
-  return (
-    <Suspense fallback={<div className="p-6 text-sm">Cargando verificación…</div>}>
-      <VerifyClient />
-    </Suspense>
-  );
-}
+  const [jwt, setJwt] = useState('');
+  const [result, setResult] = useState<any>(null);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-function VerifyClient() {
-  const sp = useSearchParams();
-  const [qr, setQr] = useState<string>('');
-  const jwt = sp.get('jwt') ?? '';
+  async function onVerify(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    setResult(null);
+    setLoading(true);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function run() {
-      if (!jwt) {
-        setQr('');
-        return;
+    try {
+      const res = await fetch('/api/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jwt }),
+      });
+
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`HTTP ${res.status}: ${txt}`);
       }
-      try {
-        const dataUrl = await QRCode.toDataURL(jwt);
-        if (!cancelled) setQr(dataUrl);
-      } catch {
-        if (!cancelled) setQr('');
-      }
+
+      const data = await res.json();
+      setResult(data);
+    } catch (err: any) {
+      setError(err?.message ?? String(err));
+    } finally {
+      setLoading(false);
     }
-    run();
-    return () => {
-      cancelled = true;
-    };
-  }, [jwt]);
+  }
 
   return (
-    <main className="min-h-screen p-6 flex items-center justify-center bg-gray-50">
-      <div className="w-full max-w-3xl bg-white rounded-2xl shadow p-6 grid gap-4">
-        <h1 className="text-xl font-semibold">Verificar credencial</h1>
+    <main className="max-w-2xl mx-auto p-6 space-y-6">
+      <h1 className="text-2xl font-semibold">Verificar credencial</h1>
 
-        {!jwt ? (
-          <p className="text-sm text-gray-600">
-            Pega un token en la URL como <code>?jwt=&lt;TU_JWT&gt;</code> para generar el QR y
-            mostrar el contenido.
-          </p>
-        ) : (
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="border rounded-lg p-3">
-              <h2 className="text-sm font-medium mb-2">QR del JWT</h2>
-              {qr ? (
-                <img src={qr} alt="QR del JWT" className="w-full h-auto" />
-              ) : (
-                <div className="text-xs text-gray-500">Generando QR…</div>
-              )}
-            </div>
+      <form onSubmit={onVerify} className="space-y-3">
+        <label className="grid gap-1">
+          <span className="text-sm font-medium">Pega el JWT</span>
+          <textarea
+            className="w-full h-48 border rounded p-3 font-mono text-xs"
+            value={jwt}
+            onChange={(e) => setJwt(e.target.value)}
+            required
+          />
+        </label>
 
-            <div className="border rounded-lg p-3">
-              <h2 className="text-sm font-medium mb-2">JWT</h2>
-              <textarea
-                readOnly
-                className="w-full h-48 text-xs bg-gray-100 p-2 rounded"
-                value={jwt}
-              />
-            </div>
-          </div>
-        )}
-      </div>
+        <button
+          type="submit"
+          disabled={loading}
+          className="border rounded px-4 py-2 disabled:opacity-50"
+        >
+          {loading ? 'Verificando…' : 'Verificar'}
+        </button>
+      </form>
+
+      {!!error && (
+        <div className="text-red-600 whitespace-pre-wrap break-words border border-red-300 rounded p-3 bg-red-50">
+          {error}
+        </div>
+      )}
+
+      {result && (
+        <section className="space-y-2">
+          <h2 className="text-lg font-medium">Resultado</h2>
+          <pre className="w-full border rounded p-3 bg-gray-50 overflow-auto text-xs">
+            {JSON.stringify(result, null, 2)}
+          </pre>
+        </section>
+      )}
     </main>
   );
 }
