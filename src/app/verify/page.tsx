@@ -2,11 +2,26 @@
 
 import React, { useState } from 'react';
 
+type VerifyOk = {
+  valid: true;
+  issuer: string | null;
+  subject: string | null;
+  header: Record<string, unknown>;
+  payload: Record<string, unknown>;
+};
+
+type VerifyFail = {
+  valid: false;
+  error: string;
+};
+
+type VerifyResponse = VerifyOk | VerifyFail;
+
 export default function VerifyPage() {
-  const [jwt, setJwt] = useState('');
-  const [result, setResult] = useState<any>(null);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [jwt, setJwt] = useState<string>('');
+  const [result, setResult] = useState<VerifyResponse | null>(null);
+  const [error, setError] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(false);
 
   async function onVerify(e: React.FormEvent) {
     e.preventDefault();
@@ -26,10 +41,12 @@ export default function VerifyPage() {
         throw new Error(`HTTP ${res.status}: ${txt}`);
       }
 
-      const data = await res.json();
+      const data = (await res.json()) as VerifyResponse;
       setResult(data);
-    } catch (err: any) {
-      setError(err?.message ?? String(err));
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : typeof err === 'string' ? err : 'Unknown error';
+      setError(msg);
     } finally {
       setLoading(false);
     }
