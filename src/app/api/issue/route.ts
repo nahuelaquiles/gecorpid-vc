@@ -1,101 +1,96 @@
-import { NextRequest } from "next/server";
-import { z } from "zod";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { signVc } from "@/lib/jose";
-import { getEnv } from "@/lib/env";
+import { NextRequest, NextResponse } from 'next/server';
+import { importJWK, JWK, KeyLike, SignJWT } from 'jose';
 
-export const runtime = "nodejs";
+type IssueBody = {
+  subjectId: string;
+  claims: Record<string, unknown>;
+};
 
-const BodySchema = z.object({
-  subjectId: z.string().optional(),
-  vcType: z.array(z.string()).optional(),
-  claims: z.record(z.string(), z.any()).optional(),
-  expiresInDays: z.number().optional(),
-});
+function getEnv(name: string): string | null {
+  return process.env[name] ?? null;
+}
+
+function required(name: string): string {
+  const v = getEnv(name);
+  if (!v) throw new Error(`Missing env: ${name}`);
+  return v;
+}
+
+async function importPrivateEd25519(jwkJson: string): Promise<KeyLike> {
+  const jwk = JSON.parse(jwkJson) as JWK;
+  return importJWK(jwk, 'EdDSA');
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const json = await req.json();
-    const parsed = BodySchema.safeParse(json);
-    if (!parsed.success) {
-      return Response.json(
-        { error: "Body inválido", details: parsed.error.flatten() },
-        { status: 400 },
+    // Auth de API por header
+    const headerKey = req.headers.get('x-api-key') ?? '';
+    const serverKey = getEnv('API_KEY') ?? getEnv('ADMIN_SECRET') ?? '';
+    if (!serverKey) {
+      return NextResponse.json(
+        { error: 'Missing API key on server (API_KEY or ADMIN_SECRET).' },
+        { status: 500 }
       );
     }
-
-    const { subjectId, vcType, claims, expiresInDays } = parsed.data;
-
-    const apiKey = req.headers.get("x-api-key") || "";
-    if (!apiKey) {
-      return Response.json(
-        { error: "Falta encabezado x-api-key" },
-        { status: 401 },
-      );
+    if (headerKey !== serverKey) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: tenant, error: tenantErr } = await supabaseAdmin
-      .from("tenants")
-      .select("id")
-      .eq("api_key", apiKey)
-      .maybeSingle();
-    if (tenantErr || !tenant) {
-      return Response.json(
-        { error: "API key inválida" },
-        { status: 401 },
-      );
+    const body = (await req.json()) as IssueBody;
+    if (!body?.subjectId) {
+      return NextResponse.json({ error: 'subjectId is required' }, { status: 400 });
     }
 
-    const { data: creditData, error: creditErr } = await supabaseAdmin
-      .from("tenant_credits")
-      .select("credits")
-      .eq("tenant_id", tenant.id)
-      .maybeSingle();
-    if (creditErr) {
-      return Response.json(
-        { error: creditErr.message },
-        { status: 500 },
-      );
-    }
-    const credits = creditData?.credits ?? 0;
-    if (credits <= 0) {
-      return Response.json(
-        { error: "Sin créditos disponibles" },
-        { status: 403 },
-      );
-    }
+    const issuer =
+      getEnv('ISSUER_DID') ??
+      getEnv('VC_ISSUER_DID') ??
+      (() => {
+        throw new Error('Missing env: ISSUER_DID or VC_ISSUER_DID');
+      })();
 
-    const { issuerDid } = getEnv();
+    const kid = getEnv('VC_KID') ?? `${issuer}#key-1`;
+
+    const privateJwkJson =
+      getEnv('PRIVATE_JWK') ??
+      getEnv('SIGNING_PRIVATE_JWK') ??
+      (() => {
+        throw new Error('Missing env: PRIVATE_JWK or SIGNING_PRIVATE_JWK');
+      })();
+
+    const key = await importPrivateEd25519(privateJwkJson);
+
+    // VC payload básico
     const now = Math.floor(Date.now() / 1000);
-
-    const vc = {
-      "@context": ["https://www.w3.org/ns/credentials/v2"],
-      type: ["VerifiableCredential", ...(vcType ?? ["BasicIDCredential"])],
-      issuer: issuerDid,
-      issuanceDate: new Date(now * 1000).toISOString(),
-      credentialSubject: {
-        ...(subjectId ? { id: subjectId } : {}),
-        ...(claims ?? {}),
+    const payload: Record<string, unknown> = {
+      iss: issuer,
+      sub: body.subjectId,
+      nbf: now,
+      iat: now,
+      exp: now + 60 * 60 * 24 * 365, // 1 año
+      vc: {
+        '@context': ['https://www.w3.org/2018/credentials/v1'],
+        type: ['VerifiableCredential', 'PersonCredential'],
+        issuer,
+        issuanceDate: new Date().toISOString(),
+        credentialSubject: {
+          id: body.subjectId,
+          ...(body.claims ?? {}),
+        },
       },
     };
 
-    const jwt = await signVc({ vc }, { expiresInDays });
+    const jwt = await new SignJWT(payload)
+      .setProtectedHeader({ alg: 'EdDSA', kid })
+      .setIssuer(issuer)
+      .setSubject(body.subjectId)
+      .setIssuedAt(now)
+      .setExpirationTime(payload.exp as number)
+      .sign(key);
 
-    await supabaseAdmin
-      .from("tenant_credits")
-      .update({ credits: credits - 1 })
-      .eq("tenant_id", tenant.id);
-
-    const url = new URL(req.url);
-    url.pathname = "/api/verify";
-    url.searchParams.set("jwt", jwt);
-    const verifyUrl = url.toString();
-
-    return Response.json({ jwt, vc, verifyUrl });
-  } catch (err: any) {
-    return Response.json(
-      { error: err?.message ?? "Error desconocido" },
-      { status: 500 },
-    );
+    return NextResponse.json({ jwt });
+  } catch (err: unknown) {
+    const msg =
+      err instanceof Error ? err.message : typeof err === 'string' ? err : 'Unknown error';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
