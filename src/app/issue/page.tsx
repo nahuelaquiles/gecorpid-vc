@@ -2,15 +2,17 @@
 
 import React, { useState } from 'react';
 
+type IssueResponse = { jwt: string };
+
 export default function IssuePage() {
   const [givenName, setGivenName] = useState('');
   const [familyName, setFamilyName] = useState('');
   const [email, setEmail] = useState('');
-  const [subjectId, setSubjectId] = useState('did:example:holder'); // puedes cambiarlo
-  const [apiKey, setApiKey] = useState(''); // <- API key para el header
+  const [subjectId, setSubjectId] = useState('did:example:holder');
+  const [apiKey, setApiKey] = useState('');
   const [jwt, setJwt] = useState<string | null>(null);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -23,7 +25,7 @@ export default function IssuePage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': apiKey, // <- importante: coincide con lo que valida tu API
+          'x-api-key': apiKey,
         },
         body: JSON.stringify({
           subjectId,
@@ -36,10 +38,12 @@ export default function IssuePage() {
         throw new Error(`HTTP ${res.status}: ${txt}`);
       }
 
-      const data = (await res.json()) as { jwt: string };
+      const data = (await res.json()) as IssueResponse;
       setJwt(data.jwt);
-    } catch (err: any) {
-      setError(err?.message ?? String(err));
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : typeof err === 'string' ? err : 'Unknown error';
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -94,12 +98,12 @@ export default function IssuePage() {
           </label>
 
           <label className="grid gap-1 md:col-span-2">
-            <span className="text-sm font-medium">API Key (para /api/issue)</span>
+            <span className="text-sm font-medium">API Key (server)</span>
             <input
               className="border rounded px-3 py-2"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              placeholder="coloca la API key configurada en el server"
+              placeholder="ADMIN_SECRET o API_KEY"
               required
             />
           </label>
