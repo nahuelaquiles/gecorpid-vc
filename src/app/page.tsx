@@ -1,21 +1,25 @@
-'use client';
+import { supabaseServer } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import LoginBox from "./signin";
 
-import Link from 'next/link';
+export default async function Page() {
+  const supabase = supabaseServer();
+  const { data: { user } } = await supabase.auth.getUser();
 
-export default function Home() {
+  if (user) redirect("/dashboard");
+
   return (
-    <main className="min-h-screen flex items-center justify-center p-6 bg-gray-50">
-      <div className="w-full max-w-xl bg-white rounded-2xl shadow p-8 grid gap-4 text-center">
-        <h1 className="text-2xl font-semibold">GECORP ID — Credenciales Verificables</h1>
-        <p className="text-sm text-gray-600">
-          Emite una Verifiable Credential (JWT) firmada con <code>did:web</code> y genera su QR para verificación.
-        </p>
-        <div className="flex gap-3 justify-center">
-          <Link href="/issue" className="px-4 py-2 rounded-xl bg-black text-white">Emitir credencial</Link>
-          <Link href="/verify" className="px-4 py-2 rounded-xl border">Verificar (pegar ?jwt=...)</Link>
+    <main className="grid gap-8">
+      <section className="grid md:grid-cols-2 gap-6 items-start">
+        <div>
+          <h1 className="text-3xl font-bold mb-3">Acceso a la consola</h1>
+          <p className="text-neutral-600">
+            Inicia sesión para emitir y verificar credenciales, gestionar créditos,
+            y generar PDFs con QR incrustado.
+          </p>
         </div>
-        <p className="text-xs text-gray-500">Issuer: did:web:gecorpid.com</p>
-      </div>
+        <LoginBox />
+      </section>
     </main>
   );
 }
