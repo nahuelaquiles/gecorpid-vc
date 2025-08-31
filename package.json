@@ -6,21 +6,27 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "postinstall": "tailwindcss -v >/dev/null 2>&1 || true"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.54.0",
+    "@supabase/ssr": "^0.5.1",
     "bcryptjs": "^3.0.2",
     "did-jwt-vc": "^4.0.15",
     "did-resolver": "^4.1.0",
     "jose": "^6.0.12",
     "next": "15.4.6",
+    "pdf-lib": "^1.17.1",
     "qrcode": "^1.5.4",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "uuid": "^11.1.0",
     "web-did-resolver": "^2.0.30",
-    "zod": "^4.0.16"
+    "zod": "^4.0.16",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.453.0",
+    "tailwind-merge": "^2.5.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
@@ -30,7 +36,9 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.4.6",
-    "tailwindcss": "^4",
+    "tailwindcss": "^4.0.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.41",
     "typescript": "^5"
   }
 }
