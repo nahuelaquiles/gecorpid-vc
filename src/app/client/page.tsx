@@ -82,7 +82,14 @@ export default function ClientPage() {
   return (
     <main style={{ display: 'grid', placeItems: 'center', minHeight: '70vh', padding: '2rem' }}>
       <div style={{ width: '100%', maxWidth: 560 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '1rem',
+          }}
+        >
           <h1 style={{ fontSize: '1.6rem' }}>Panel de cliente</h1>
           <button
             onClick={logout}
@@ -96,9 +103,55 @@ export default function ClientPage() {
           Subí un <b>PDF</b> y el sistema agregará un <b>QR</b> con la URL de verificación. Se descontará <b>1 crédito</b>.
         </p>
 
-        <form onSubmit={onUpload} style={{ display: 'grid', gap: '0.8rem', padding: '1rem', border: '1px solid #eee', borderRadius: 12 }}>
+        <form
+          onSubmit={onUpload}
+          style={{ display: 'grid', gap: '0.8rem', padding: '1rem', border: '1px solid #eee', borderRadius: 12 }}
+        >
           <input
             type="file"
             accept="application/pdf"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            style={{ padding
+            style={{ padding: '0.5rem', border: '1px solid #ccc', borderRadius: 8 }}
+            required
+          />
+
+          <button
+            type="submit"
+            disabled={status === 'uploading'}
+            style={{
+              padding: '0.7rem 0.9rem',
+              borderRadius: 10,
+              border: '1px solid #222',
+              background: status === 'uploading' ? '#999' : '#222',
+              color: '#fff',
+              fontWeight: 600,
+              cursor: status === 'uploading' ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {status === 'uploading' ? 'Procesando…' : 'Subir y generar QR'}
+          </button>
+
+          {errorMsg && <div style={{ color: '#b00020' }}>{errorMsg}</div>}
+
+          {downloadUrl && (
+            <div style={{ marginTop: '0.5rem', display: 'grid', gap: '0.5rem' }}>
+              <a href={downloadUrl} download="document-with-qr.pdf" style={{ textDecoration: 'underline' }}>
+                Descargar PDF con QR
+              </a>
+              <button
+                type="button"
+                onClick={() => window.open(downloadUrl!, '_blank')}
+                style={{ border: '1px solid #ccc', padding: '0.5rem 0.7rem', borderRadius: 8, cursor: 'pointer' }}
+              >
+                Abrir en otra pestaña
+              </button>
+              <small style={{ color: '#666' }}>
+                El QR apunta a <code>/v/&lt;id&gt;</code>. En los pasos 5–6 activaremos la verificación y redirección pública.
+              </small>
+            </div>
+          )}
+        </form>
+      </div>
+    </main>
+  );
+}
