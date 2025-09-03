@@ -1,171 +1,462 @@
-import { cookies } from 'next/headers';
-import { supabaseAdmin } from '@/lib/supabase';
-import { revalidatePath } from 'next/cache';
-import { v4 as uuidv4 } from 'uuid';
+"use client";
 
-// Página del panel admin (Server Component)
-export default async function AdminPage() {
-  // Next 15: cookies() es async
-  const cookieStore = await cookies();
-  const ok = cookieStore.get('admin')?.value === 'ok';
+import { useEffect, useMemo, useState } from "react";
 
-  if (!ok) {
-    return (
-      <div className="p-6">
-        <p>No autorizado. <a className="underline" href="/admin/login">Ir a login</a></p>
-      </div>
-    );
-  }
+type Tenant = {
+  id: string;
+  name: string | null;
+  email: string;
+  api_key?: string | null;
+  credits?: number | null;
+};
 
-  // Datos para la tabla
-  const { data: tenants } = await supabaseAdmin
-    .from('tenants')
-    .select('id, name, api_key, is_active, created_at')
-    .order('created_at', { ascending: false });
+type FetchState = "idle" | "loading" | "success" | "error";
 
-  const { data: credits } = await supabaseAdmin
-    .from('tenant_credits')
-    .select('tenant_id, credits');
+const SS_KEY = "gecorpid_admin_secret";
 
-  const creditMap: Record<string, number> =
-    Object.fromEntries((credits ?? []).map((c) => [c.tenant_id, c.credits]));
+export default function AdminPage() {
+  const [adminSecret, setAdminSecret] = useState<string>("");
+  const [logged, setLogged] = useState(false);
 
-  return (
-    <div className="p-6 space-y-8">
-      <h1 className="text-2xl font-semibold">Admin</h1>
+  // Tenants
+  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [fetchTenantsState, setFetchTenantsState] = useState<FetchState>("idle");
+  const [filter, setFilter] = useState("");
 
-      <section className="space-y-2">
-        <h2 className="text-lg font-medium">Crear tenant</h2>
-        <CreateTenantForm />
-        <p className="text-sm text-gray-500">
-          Tras crear, la API Key aparecerá en la tabla de abajo para copiarla.
-        </p>
-      </section>
+  // Create tenant form
+  const [tName, setTName] = useState("");
+  const [tEmail, setTEmail] = useState("");
+  const [tPassword, setTPassword] = useState("");
+  const [tCredits, setTCredits] = useState<number>(10);
+  const [creating, setCreating] = useState<FetchState>("idle");
 
-      <section className="space-y-2">
-        <h2 className="text-lg font-medium">Tenants</h2>
-        <div className="border rounded overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="p-2 text-left">Nombre</th>
-                <th className="p-2 text-left">API Key</th>
-                <th className="p-2 text-center">Créditos</th>
-                <th className="p-2 text-center">Agregar créditos</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(tenants ?? []).map((t) => (
-                <tr key={t.id} className="border-t">
-                  <td className="p-2">{t.name}</td>
-                  <td className="p-2 font-mono text-xs break-all">{t.api_key}</td>
-                  <td className="p-2 text-center">{creditMap[t.id] ?? 0}</td>
-                  <td className="p-2">
-                    <AddCreditsForm tenantId={t.id} />
-                  </td>
-                </tr>
-              ))}
-              {(!tenants || tenants.length === 0) && (
-                <tr>
-                  <td className="p-3" colSpan={4}>Sin tenants aún.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </div>
-  );
-}
+  // Quick add credits
+  const [targetTenantId, setTargetTenantId] = useState("");
+  const [targetEmail, setTargetEmail] = useState("");
+  const [deltaCredits, setDeltaCredits] = useState<number>(1);
+  const [addingCredits, setAddingCredits] = useState<FetchState>("idle");
 
-/* ====== Server Actions (no JS del lado del cliente necesario) ====== */
+  // UI Toast
+  const [toast, setToast] = useState<string>("");
 
-// Crear tenant + asignar créditos iniciales
-async function createTenantAction(formData: FormData) {
-  'use server';
-  const name = String(formData.get('name') ?? '');
-  const initialCredits = Number(formData.get('initialCredits') ?? 0);
+  // Bootstrap from sessionStorage
+  useEffect(() => {
+    const fromSS = typeof window !== "undefined" ? sessionStorage.getItem(SS_KEY) : null;
+    if (fromSS) {
+      setAdminSecret(fromSS);
+      // try silent login
+      void tryLogin(fromSS);
+    }
+  }, []);
 
-  if (!name) return;
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(""), 2200);
+  };
 
-  const apiKey = `KEY_${uuidv4()}`;
-
-  const { data: t, error: e1 } = await supabaseAdmin
-    .from('tenants')
-    .insert({ name, api_key: apiKey })
-    .select()
-    .single();
-
-  if (!e1 && t) {
-    // crea registro de créditos (0 por defecto) y suma inicialCredits
-    const { error: e2 } = await supabaseAdmin
-      .from('tenant_credits')
-      .upsert({ tenant_id: t.id, credits: initialCredits });
-    if (e2) {
-      // En caso de error, podrías loguearlo a futuro
+  async function tryLogin(secret: string) {
+    setFetchTenantsState("loading");
+    try {
+      const res = await fetch("/api/admin/list-tenants", {
+        method: "GET",
+        headers: {
+          "x-admin-secret": secret,
+        },
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        // Endpoint may not exist yet → show helpful hint
+        if (res.status === 404) {
+          setLogged(true);
+          setFetchTenantsState("error");
+          showToast(
+            "Logged in. Tenants endpoint not found yet (/api/admin/list-tenants). You can still create tenants and add credits."
+          );
+          // Save secret so create/add endpoints work
+          sessionStorage.setItem(SS_KEY, secret);
+          return;
+        }
+        const body = await res.text();
+        throw new Error(body || `HTTP ${res.status}`);
+      }
+      const data = (await res.json()) as { tenants: Tenant[] };
+      setTenants(data.tenants || []);
+      setLogged(true);
+      setFetchTenantsState("success");
+      sessionStorage.setItem(SS_KEY, secret);
+      showToast("Admin authenticated.");
+    } catch (err: any) {
+      setFetchTenantsState("error");
+      setLogged(false);
+      showToast(`Login failed: ${err?.message || "Unknown error"}`);
     }
   }
 
-  // Refresca la página para ver el nuevo tenant y su API Key
-  revalidatePath('/admin');
-}
-
-// Sumar/restar créditos al tenant
-async function addCreditsAction(formData: FormData) {
-  'use server';
-  const tenantId = String(formData.get('tenantId') ?? '');
-  const amount = Number(formData.get('amount') ?? 0);
-  if (!tenantId || Number.isNaN(amount)) return;
-
-  const { data, error } = await supabaseAdmin
-    .from('tenant_credits')
-    .select('credits')
-    .eq('tenant_id', tenantId)
-    .maybeSingle();
-
-  if (!error) {
-    const current = data?.credits ?? 0;
-    const next = current + amount;
-
-    await supabaseAdmin
-      .from('tenant_credits')
-      .upsert({ tenant_id: tenantId, credits: next });
+  async function onLoginSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    await tryLogin(adminSecret.trim());
   }
 
-  revalidatePath('/admin');
-}
+  async function refreshTenants() {
+    if (!logged) return;
+    setFetchTenantsState("loading");
+    try {
+      const res = await fetch("/api/admin/list-tenants", {
+        headers: { "x-admin-secret": adminSecret },
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = (await res.json()) as { tenants: Tenant[] };
+      setTenants(data.tenants || []);
+      setFetchTenantsState("success");
+      showToast("Tenants refreshed.");
+    } catch (err: any) {
+      setFetchTenantsState("error");
+      showToast(`Refresh error: ${err?.message || "Unknown error"}`);
+    }
+  }
 
-/* ====== Formularios (HTML) que usan las Server Actions ====== */
+  async function createTenant(e: React.FormEvent) {
+    e.preventDefault();
+    setCreating("loading");
+    try {
+      const res = await fetch("/api/admin/create-tenant", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-admin-secret": adminSecret,
+        },
+        body: JSON.stringify({
+          name: tName || null,
+          email: tEmail,
+          password: tPassword,
+          initial_credits: Number.isFinite(tCredits) ? tCredits : 0,
+        }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setCreating("success");
+      setTName("");
+      setTEmail("");
+      setTPassword("");
+      setTCredits(10);
+      showToast("Tenant created.");
+      void refreshTenants();
+    } catch (err: any) {
+      setCreating("error");
+      showToast(`Create error: ${err?.message || "Unknown error"}`);
+    }
+  }
 
-function CreateTenantForm() {
+  async function addCredits(e: React.FormEvent) {
+    e.preventDefault();
+    setAddingCredits("loading");
+    try {
+      const payload: any = { credits: Number(deltaCredits) };
+      if (targetTenantId.trim()) payload.tenantId = targetTenantId.trim();
+      if (targetEmail.trim()) payload.email = targetEmail.trim();
+
+      const res = await fetch("/api/admin/add-credits", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-admin-secret": adminSecret,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setAddingCredits("success");
+      showToast("Credits updated.");
+      setTargetTenantId("");
+      setTargetEmail("");
+      setDeltaCredits(1);
+      void refreshTenants();
+    } catch (err: any) {
+      setAddingCredits("error");
+      showToast(`Credits error: ${err?.message || "Unknown error"}`);
+    }
+  }
+
+  function maskKey(key?: string | null) {
+    if (!key) return "—";
+    if (key.length <= 8) return key;
+    return `${key.slice(0, 4)}••••${key.slice(-4)}`;
+    }
+
+  async function copy(text?: string | null) {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast("Copied.");
+    } catch {
+      showToast("Cannot copy on this browser.");
+    }
+  }
+
+  function logout() {
+    sessionStorage.removeItem(SS_KEY);
+    setLogged(false);
+    setTenants([]);
+    setAdminSecret("");
+    showToast("Logged out.");
+  }
+
+  const filteredTenants = useMemo(() => {
+    const q = filter.trim().toLowerCase();
+    if (!q) return tenants;
+    return tenants.filter((t) => {
+      const hay = `${t.name || ""} ${t.email} ${t.id} ${t.api_key || ""}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [filter, tenants]);
+
+  if (!logged) {
+    return (
+      <main className="admin">
+        <header className="top">
+          <div className="brand">
+            <span className="dot" aria-hidden />
+            <span className="logo">GECORPID • VC — Admin</span>
+          </div>
+        </header>
+
+        <section className="panel">
+          <h1>Admin Login</h1>
+          <p className="muted">
+            Enter the <code>ADMIN_SECRET</code> to manage tenants and credits.
+          </p>
+          <form onSubmit={onLoginSubmit} className="form">
+            <label>
+              <span>ADMIN_SECRET</span>
+              <input
+                type="password"
+                placeholder="••••••••••••••••••"
+                value={adminSecret}
+                onChange={(e) => setAdminSecret(e.target.value)}
+                required
+                autoFocus
+              />
+            </label>
+            <button className="btn primary" disabled={!adminSecret}>
+              {fetchTenantsState === "loading" ? "Checking..." : "Login"}
+            </button>
+          </form>
+          {!!toast && <p className="toast">{toast}</p>}
+        </section>
+
+        <style jsx>{styles}</style>
+      </main>
+    );
+  }
+
   return (
-    <form action={createTenantAction} className="flex gap-2 items-center">
-      <input name="name" placeholder="Nombre" className="border rounded p-2" required />
-      <input
-        name="initialCredits"
-        type="number"
-        placeholder="Créditos iniciales"
-        className="border rounded p-2 w-40"
-        defaultValue={0}
-      />
-      <button className="border rounded px-3 py-2">Crear</button>
-    </form>
+    <main className="admin">
+      <header className="top">
+        <div className="brand">
+          <span className="dot" aria-hidden />
+          <span className="logo">GECORPID • VC — Admin</span>
+        </div>
+        <div className="actions">
+          <button className="btn ghost" onClick={refreshTenants}>
+            {fetchTenantsState === "loading" ? "Refreshing..." : "Refresh"}
+          </button>
+          <button className="btn danger" onClick={logout}>Logout</button>
+        </div>
+      </header>
+
+      <section className="grid">
+        <article className="card">
+          <h3>Create tenant</h3>
+          <form onSubmit={createTenant} className="form">
+            <label>
+              <span>Name (optional)</span>
+              <input value={tName} onChange={(e) => setTName(e.target.value)} placeholder="Acme Labs" />
+            </label>
+            <label>
+              <span>Email</span>
+              <input value={tEmail} onChange={(e) => setTEmail(e.target.value)} placeholder="admin@acme.com" required />
+            </label>
+            <label>
+              <span>Password</span>
+              <input value={tPassword} onChange={(e) => setTPassword(e.target.value)} placeholder="temporary password" required />
+            </label>
+            <label>
+              <span>Initial credits</span>
+              <input
+                type="number"
+                min={0}
+                value={tCredits}
+                onChange={(e) => setTCredits(parseInt(e.target.value || "0", 10))}
+              />
+            </label>
+            <button className="btn primary">
+              {creating === "loading" ? "Creating..." : "Create tenant"}
+            </button>
+          </form>
+        </article>
+
+        <article className="card">
+          <h3>Quick add credits</h3>
+          <p className="muted small">
+            Target by <b>tenantId</b> or <b>email</b>. Positive adds, negative subtracts.
+          </p>
+          <form onSubmit={addCredits} className="form">
+            <label>
+              <span>tenantId</span>
+              <input
+                value={targetTenantId}
+                onChange={(e) => setTargetTenantId(e.target.value)}
+                placeholder="e.g. 0f9f…"
+              />
+            </label>
+            <label>
+              <span>email</span>
+              <input
+                value={targetEmail}
+                onChange={(e) => setTargetEmail(e.target.value)}
+                placeholder="user@domain.com"
+              />
+            </label>
+            <label>
+              <span>Δ credits</span>
+              <input
+                type="number"
+                value={deltaCredits}
+                onChange={(e) => setDeltaCredits(parseInt(e.target.value || "0", 10))}
+              />
+            </label>
+            <button className="btn primary">
+              {addingCredits === "loading" ? "Updating..." : "Apply"}
+            </button>
+          </form>
+        </article>
+      </section>
+
+      <section className="tableWrap">
+        <div className="tableTop">
+          <h3>Tenants</h3>
+          <input
+            className="search"
+            placeholder="Search by name, email, id, or api key…"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          />
+        </div>
+
+        <div className="table">
+          <div className="row head">
+            <div>Name</div>
+            <div>Email</div>
+            <div>Tenant ID</div>
+            <div>Credits</div>
+            <div>API Key</div>
+            <div>Actions</div>
+          </div>
+
+          {fetchTenantsState === "error" && (
+            <div className="empty">
+              <p>
+                Couldn’t load tenants. If <code>/api/admin/list-tenants</code> isn’t implemented yet,
+                you can still use “Create tenant” and “Quick add credits”.
+              </p>
+            </div>
+          )}
+
+          {fetchTenantsState !== "error" && filteredTenants.length === 0 && (
+            <div className="empty">
+              <p>No tenants to show.</p>
+            </div>
+          )}
+
+          {filteredTenants.map((t) => (
+            <div key={t.id} className="row">
+              <div title={t.name || ""}>{t.name || "—"}</div>
+              <div title={t.email}>{t.email}</div>
+              <div title={t.id} className="mono">{t.id}</div>
+              <div className="mono">{t.credits ?? "—"}</div>
+              <div className="mono" title={t.api_key || ""}>{maskKey(t.api_key)}</div>
+              <div className="actionsRow">
+                <button className="btn tiny" onClick={() => copy(t.api_key || "")}>Copy key</button>
+                <button
+                  className="btn tiny ghost"
+                  onClick={() => {
+                    setTargetTenantId(t.id);
+                    setTargetEmail("");
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                    showToast(`Target set to tenantId=${t.id}`);
+                  }}
+                >
+                  Target
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {!!toast && <div className="toastFixed">{toast}</div>}
+
+      <style jsx>{styles}</style>
+    </main>
   );
 }
 
-function AddCreditsForm({ tenantId }: { tenantId: string }) {
-  return (
-    <form action={addCreditsAction} className="flex gap-2 items-center">
-      <input type="hidden" name="tenantId" value={tenantId} />
-      <input
-        name="amount"
-        type="number"
-        placeholder="+/-"
-        className="border rounded p-2 w-28"
-        defaultValue={1}
-      />
-      <button className="border rounded px-3 py-2">Actualizar</button>
-    </form>
-  );
+const styles = `
+:root{
+  --bg:#0b0e14;
+  --panel: rgba(255,255,255,0.06);
+  --card: rgba(255,255,255,0.08);
+  --text:#e7eef7;
+  --muted:#b8c4d6;
+  --accent:#4f8cff;
+  --accent-2:#2e6dff;
+  --ring:rgba(79,140,255,.45);
+  --danger:#e5484d;
+  --shadow:0 10px 30px rgba(0,0,0,.25);
+  --radius:14px;
 }
+@media (prefers-color-scheme: light){
+  :root{
+    --bg:#f7f9fc; --panel: rgba(0,0,0,0.04); --card:#fff; --text:#0f172a; --muted:#475569;
+    --accent:#3457d5; --accent-2:#2747c7; --ring:rgba(52,87,213,.35); --danger:#d11a2a;
+    --shadow:0 10px 24px rgba(2,6,23,.06);
+  }
+}
+*{box-sizing:border-box}
+.admin{min-height:100svh; padding:24px; background:
+  radial-gradient(1000px 600px at 20% -10%, rgba(79,140,255, .18), transparent 60%),
+  radial-gradient(800px 500px at 95% 0%, rgba(79,140,255, .12), transparent 60%),
+  var(--bg); color:var(--text)}
+.top{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 14px; border-radius:14px; background:var(--panel); box-shadow:var(--shadow);}
+.brand{display:flex; align-items:center; gap:10px; font-weight:700}
+.dot{width:10px;height:10px;border-radius:999px;background:linear-gradient(135deg,var(--accent),var(--accent-2)); box-shadow:0 0 0 6px var(--ring)}
+.logo{font-size:15px}
+.actions{display:flex; gap:8px}
+.grid{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-top:16px}
+@media (max-width: 900px){ .grid{grid-template-columns:1fr} }
+.panel,.card{background:var(--card); border:1px solid rgba(255,255,255,.12); border-radius:14px; box-shadow:var(--shadow); padding:18px}
+.panel h1{margin:0 0 8px 0}
+.form{display:grid; gap:10px; margin-top:10px}
+label{display:grid; gap:6px; font-size:14px}
+input{height:42px; padding:0 12px; border-radius:10px; border:1px solid rgba(255,255,255,.18); background:transparent; color:var(--text)}
+input::placeholder{color:var(--muted)}
+.btn{display:inline-flex;align-items:center;justify-content:center;height:40px;padding:0 14px;border-radius:10px;border:1px solid transparent; box-shadow:var(--shadow)}
+.btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent-2)); color:#fff}
+.btn.primary:disabled{opacity:.6}
+.btn.ghost{background:transparent; border-color:rgba(255,255,255,.24); color:var(--text)}
+.btn.danger{background:transparent; color:#fff; border-color:var(--danger)}
+.btn.tiny{height:30px; padding:0 10px; font-size:12px}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.tableWrap{margin-top:18px; background:var(--card); border:1px solid rgba(255,255,255,.12); border-radius:14px; box-shadow:var(--shadow); padding:12px}
+.tableTop{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px}
+.search{height:38px; padding:0 12px; border-radius:10px; border:1px solid rgba(255,255,255,.18); background:transparent; color:var(--text); width:260px}
+.table{display:grid; gap:8px}
+.row{display:grid; grid-template-columns: 1.2fr 1.6fr 1.6fr .8fr 1.4fr .9fr; gap:10px; align-items:center; padding:10px; border-radius:12px; background:rgba(255,255,255,.04)}
+.row.head{font-weight:700; background:transparent; border:1px dashed rgba(255,255,255,.18)}
+.row .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
+.actionsRow{display:flex; gap:6px; justify-content:flex-end}
+.empty{padding:14px; color:var(--muted)}
+.toast,.toastFixed{color:var(--muted); margin-top:8px}
+.toastFixed{position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:var(--panel); border:1px solid rgba(255,255,255,.18); padding:8px 12px; border-radius:10px; box-shadow:var(--shadow)}
+`;
 
