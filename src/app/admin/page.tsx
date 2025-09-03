@@ -29,12 +29,14 @@ export default function AdminPage() {
   const [tPassword, setTPassword] = useState("");
   const [tCredits, setTCredits] = useState<number>(10);
   const [creating, setCreating] = useState<FetchState>("idle");
+  const [createError, setCreateError] = useState<string>("");
 
   // Quick add credits
   const [targetTenantId, setTargetTenantId] = useState("");
   const [targetEmail, setTargetEmail] = useState("");
   const [deltaCredits, setDeltaCredits] = useState<number>(1);
   const [addingCredits, setAddingCredits] = useState<FetchState>("idle");
+  const [creditsError, setCreditsError] = useState<string>("");
 
   // UI Toast
   const [toast, setToast] = useState<string>("");
@@ -44,14 +46,13 @@ export default function AdminPage() {
     const fromSS = typeof window !== "undefined" ? sessionStorage.getItem(SS_KEY) : null;
     if (fromSS) {
       setAdminSecret(fromSS);
-      // try silent login
       void tryLogin(fromSS);
     }
   }, []);
 
   const showToast = (msg: string) => {
     setToast(msg);
-    setTimeout(() => setToast(""), 2200);
+    setTimeout(() => setToast(""), 2500);
   };
 
   async function tryLogin(secret: string) {
@@ -65,15 +66,13 @@ export default function AdminPage() {
         cache: "no-store",
       });
       if (!res.ok) {
-        // Endpoint may not exist yet → show helpful hint
         if (res.status === 404) {
           setLogged(true);
           setFetchTenantsState("error");
-          showToast(
-            "Logged in. Tenants endpoint not found yet (/api/admin/list-tenants). You can still create tenants and add credits."
-          );
-          // Save secret so create/add endpoints work
           sessionStorage.setItem(SS_KEY, secret);
+          showToast(
+            "Logged in. /api/admin/list-tenants not found yet — you can still create tenants and add credits."
+          );
           return;
         }
         const body = await res.text();
@@ -119,21 +118,32 @@ export default function AdminPage() {
   async function createTenant(e: React.FormEvent) {
     e.preventDefault();
     setCreating("loading");
+    setCreateError("");
     try {
+      // Enviamos claves "amigables" por compatibilidad:
+      // - initial_credits y credits
+      const payload: any = {
+        name: tName || null,
+        email: tEmail,
+        password: tPassword,
+        initial_credits: Number.isFinite(tCredits) ? tCredits : 0,
+        credits: Number.isFinite(tCredits) ? tCredits : 0,
+      };
+
       const res = await fetch("/api/admin/create-tenant", {
         method: "POST",
         headers: {
           "content-type": "application/json",
           "x-admin-secret": adminSecret,
         },
-        body: JSON.stringify({
-          name: tName || null,
-          email: tEmail,
-          password: tPassword,
-          initial_credits: Number.isFinite(tCredits) ? tCredits : 0,
-        }),
+        body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error(await res.text());
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `HTTP ${res.status}`);
+      }
+
       setCreating("success");
       setTName("");
       setTEmail("");
@@ -143,16 +153,27 @@ export default function AdminPage() {
       void refreshTenants();
     } catch (err: any) {
       setCreating("error");
-      showToast(`Create error: ${err?.message || "Unknown error"}`);
+      setCreateError(err?.message || "Unknown error");
     }
   }
 
   async function addCredits(e: React.FormEvent) {
     e.preventDefault();
     setAddingCredits("loading");
+    setCreditsError("");
     try {
-      const payload: any = { credits: Number(deltaCredits) };
-      if (targetTenantId.trim()) payload.tenantId = targetTenantId.trim();
+      const amount = Number(deltaCredits) || 0;
+
+      // Compatibilidad: enviamos varias variantes de nombres
+      const payload: any = {
+        credits: amount,     // usado por nuestro diseño
+        amount,              // alias común
+        delta: amount,       // alias común
+      };
+      if (targetTenantId.trim()) {
+        payload.tenantId = targetTenantId.trim(); // camel
+        payload.tenant_id = targetTenantId.trim(); // snake
+      }
       if (targetEmail.trim()) payload.email = targetEmail.trim();
 
       const res = await fetch("/api/admin/add-credits", {
@@ -163,7 +184,12 @@ export default function AdminPage() {
         },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error(await res.text());
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `HTTP ${res.status}`);
+      }
+
       setAddingCredits("success");
       showToast("Credits updated.");
       setTargetTenantId("");
@@ -172,7 +198,7 @@ export default function AdminPage() {
       void refreshTenants();
     } catch (err: any) {
       setAddingCredits("error");
-      showToast(`Credits error: ${err?.message || "Unknown error"}`);
+      setCreditsError(err?.message || "Unknown error");
     }
   }
 
@@ -180,7 +206,7 @@ export default function AdminPage() {
     if (!key) return "—";
     if (key.length <= 8) return key;
     return `${key.slice(0, 4)}••••${key.slice(-4)}`;
-    }
+  }
 
   async function copy(text?: string | null) {
     if (!text) return;
@@ -256,6 +282,9 @@ export default function AdminPage() {
           <span className="logo">GECORPID • VC — Admin</span>
         </div>
         <div className="actions">
+          <a href="/.well-known/did.json" className="muted small" style={{ textDecoration: "none" }}>
+            did:web:gecorpid.com
+          </a>
           <button className="btn ghost" onClick={refreshTenants}>
             {fetchTenantsState === "loading" ? "Refreshing..." : "Refresh"}
           </button>
@@ -291,6 +320,7 @@ export default function AdminPage() {
             <button className="btn primary">
               {creating === "loading" ? "Creating..." : "Create tenant"}
             </button>
+            {createError && <p className="error">Error: {createError}</p>}
           </form>
         </article>
 
@@ -327,6 +357,7 @@ export default function AdminPage() {
             <button className="btn primary">
               {addingCredits === "loading" ? "Updating..." : "Apply"}
             </button>
+            {creditsError && <p className="error">Error: {creditsError}</p>}
           </form>
         </article>
       </section>
@@ -405,8 +436,10 @@ const styles = `
   --bg:#0b0e14;
   --panel: rgba(255,255,255,0.06);
   --card: rgba(255,255,255,0.08);
-  --text:#e7eef7;
-  --muted:#b8c4d6;
+  --text:#0f172a; /* set in light via media, but keep class names consistent */
+  --text-dark:#e7eef7;
+  --muted:#475569;
+  --muted-dark:#b8c4d6;
   --accent:#4f8cff;
   --accent-2:#2e6dff;
   --ring:rgba(79,140,255,.45);
@@ -430,33 +463,33 @@ const styles = `
 .brand{display:flex; align-items:center; gap:10px; font-weight:700}
 .dot{width:10px;height:10px;border-radius:999px;background:linear-gradient(135deg,var(--accent),var(--accent-2)); box-shadow:0 0 0 6px var(--ring)}
 .logo{font-size:15px}
-.actions{display:flex; gap:8px}
+.actions{display:flex; gap:10px; align-items:center}
 .grid{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-top:16px}
 @media (max-width: 900px){ .grid{grid-template-columns:1fr} }
 .panel,.card{background:var(--card); border:1px solid rgba(255,255,255,.12); border-radius:14px; box-shadow:var(--shadow); padding:18px}
 .panel h1{margin:0 0 8px 0}
 .form{display:grid; gap:10px; margin-top:10px}
 label{display:grid; gap:6px; font-size:14px}
-input{height:42px; padding:0 12px; border-radius:10px; border:1px solid rgba(255,255,255,.18); background:transparent; color:var(--text)}
-input::placeholder{color:var(--muted)}
+input{height:42px; padding:0 12px; border-radius:10px; border:1px solid rgba(255,255,255,.18); background:transparent; color:inherit}
+input::placeholder{opacity:.8}
 .btn{display:inline-flex;align-items:center;justify-content:center;height:40px;padding:0 14px;border-radius:10px;border:1px solid transparent; box-shadow:var(--shadow)}
 .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent-2)); color:#fff}
 .btn.primary:disabled{opacity:.6}
-.btn.ghost{background:transparent; border-color:rgba(255,255,255,.24); color:var(--text)}
+.btn.ghost{background:transparent; border-color:rgba(255,255,255,.24)}
 .btn.danger{background:transparent; color:#fff; border-color:var(--danger)}
 .btn.tiny{height:30px; padding:0 10px; font-size:12px}
-.muted{color:var(--muted)}
+.muted{opacity:.8}
 .small{font-size:13px}
+.error{margin-top:8px; color:var(--danger); font-size:13px}
 .tableWrap{margin-top:18px; background:var(--card); border:1px solid rgba(255,255,255,.12); border-radius:14px; box-shadow:var(--shadow); padding:12px}
 .tableTop{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px}
-.search{height:38px; padding:0 12px; border-radius:10px; border:1px solid rgba(255,255,255,.18); background:transparent; color:var(--text); width:260px}
+.search{height:38px; padding:0 12px; border-radius:10px; border:1px solid rgba(255,255,255,.18); background:transparent; width:260px}
 .table{display:grid; gap:8px}
 .row{display:grid; grid-template-columns: 1.2fr 1.6fr 1.6fr .8fr 1.4fr .9fr; gap:10px; align-items:center; padding:10px; border-radius:12px; background:rgba(255,255,255,.04)}
 .row.head{font-weight:700; background:transparent; border:1px dashed rgba(255,255,255,.18)}
 .row .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
 .actionsRow{display:flex; gap:6px; justify-content:flex-end}
-.empty{padding:14px; color:var(--muted)}
-.toast,.toastFixed{color:var(--muted); margin-top:8px}
+.empty{padding:14px; opacity:.8}
+.toast,.toastFixed{opacity:.85; margin-top:8px}
 .toastFixed{position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:var(--panel); border:1px solid rgba(255,255,255,.18); padding:8px 12px; border-radius:10px; box-shadow:var(--shadow)}
 `;
-
