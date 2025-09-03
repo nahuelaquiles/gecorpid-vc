@@ -1,11 +1,6 @@
-// src/app/page.tsx
-import Link from "next/link";
+"use client";
 
-export const metadata = {
-  title: "GECORPID • Verifiable PDFs with QR",
-  description:
-    "Issue verifiable PDF credentials with embedded QR codes and public verification links.",
-};
+import Link from "next/link";
 
 export default function Home() {
   const year = new Date().getFullYear();
