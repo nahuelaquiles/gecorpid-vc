@@ -8,14 +8,6 @@ type TenantRow = {
   is_active: boolean | null;
 };
 
-type FileRow = {
-  id: string;
-  tenant_id: string;
-  original_path: string | null;
-  processed_path: string | null;
-  created_at: string; // timestamptz
-};
-
 function readApiKey(req: NextRequest): string | null {
   const hdr = req.headers.get("x-api-key");
   if (hdr) return hdr.trim();
@@ -29,6 +21,7 @@ function readApiKey(req: NextRequest): string | null {
 export async function GET(req: NextRequest) {
   const SUPABASE_URL = process.env.SUPABASE_URL;
   const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE;
+
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE) {
     return NextResponse.json({ error: "Supabase env vars not configured." }, { status: 500 });
   }
@@ -46,12 +39,13 @@ export async function GET(req: NextRequest) {
   });
 
   try {
-    // Resolve tenant
+    // 1) Resolver tenant por api_key
     const tRes = await supabase
       .from("tenants")
       .select("id,api_key,is_active")
       .eq("api_key", apiKey)
       .maybeSingle();
+
     if (tRes.error) throw tRes.error;
 
     const tenant = tRes.data as unknown as TenantRow | null;
@@ -59,22 +53,25 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Invalid API key." }, { status: 401 });
     }
 
+    // 2) Limite
     const sp = req.nextUrl.searchParams;
     const lim = Math.min(Math.max(parseInt(sp.get("limit") || "20", 10) || 20, 1), 100);
 
-    // Fetch files
+    // 3) Traer archivos del tenant. Usamos select("*") para no fallar si no existe created_at.
+    //    Ordenamos por id desc como fallback estable.
     const fRes = await supabase
       .from("files")
-      .select("id,tenant_id,original_path,processed_path,created_at")
+      .select("*")
       .eq("tenant_id", tenant.id)
-      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
       .limit(lim);
+
     if (fRes.error) throw fRes.error;
 
     const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL || req.nextUrl.origin).replace(/\/$/, "");
     const bucket = "vcs";
 
-    const items = (fRes.data as unknown as FileRow[]).map((f) => {
+    const items = (fRes.data as any[]).map((f) => {
       const originalUrl = f.original_path
         ? supabase.storage.from(bucket).getPublicUrl(f.original_path).data.publicUrl
         : null;
@@ -83,10 +80,10 @@ export async function GET(req: NextRequest) {
         : null;
 
       return {
-        id: f.id,
-        createdAt: f.created_at,
-        originalPath: f.original_path,
-        processedPath: f.processed_path,
+        id: f.id as string,
+        createdAt: typeof f.created_at !== "undefined" ? (f.created_at as string | null) : null,
+        originalPath: (f.original_path as string) ?? null,
+        processedPath: (f.processed_path as string) ?? null,
         originalUrl,
         processedUrl,
         verifyUrl: `${baseUrl}/v/${f.id}`,
