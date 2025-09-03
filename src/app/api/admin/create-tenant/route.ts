@@ -1,29 +1,95 @@
+// src/app/api/admin/create-tenant/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
-import { v4 as uuidv4 } from 'uuid';
+import { createClient } from '@supabase/supabase-js';
 
-function isAdmin(req: NextRequest) {
-  return req.cookies.get('admin')?.value === 'ok';
-}
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+// Supabase con service_role (solo servidor)
+const SUPABASE_URL = process.env.SUPABASE_URL!;
+const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE!;
+const ADMIN_SECRET = process.env.ADMIN_SECRET!;
+
+const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE);
+
+type Body = {
+  email?: string;
+  password?: string;
+  credits?: number;
+};
 
 export async function POST(req: NextRequest) {
-  if (!isAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const { name, initialCredits } = await req.json();
-  if (!name) return NextResponse.json({ error: 'Missing name' }, { status: 400 });
+  try {
+    // 1) Autorización admin por header
+    const hdr = req.headers.get('x-admin-secret') || '';
+    if (!ADMIN_SECRET || hdr !== ADMIN_SECRET) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-  const apiKey = `KEY_${uuidv4()}`;
-  const { data: t, error: e1 } = await supabaseAdmin
-    .from('tenants')
-    .insert({ name, api_key: apiKey })
-    .select()
-    .single();
-  if (e1) return NextResponse.json({ error: e1.message }, { status: 500 });
+    // 2) Leer body
+    const { email, password, credits } = (await req.json()) as Body;
 
-  const credits = Number(initialCredits || 0);
-  const { error: e2 } = await supabaseAdmin
-    .from('tenant_credits')
-    .insert({ tenant_id: t.id, credits });
-  if (e2) return NextResponse.json({ error: e2.message }, { status: 500 });
+    if (!email || !password || typeof credits !== 'number') {
+      return NextResponse.json(
+        { error: 'Missing fields (email, password, credits:number)' },
+        { status: 400 }
+      );
+    }
 
-  return NextResponse.json({ tenant: t, apiKey });
+    // 3) Evitar duplicados por email
+    const { data: existing, error: exErr } = await supabaseAdmin
+      .from('tenants')
+      .select('id')
+      .eq('email', email)
+      .maybeSingle<{ id: string }>();
+
+    if (exErr) {
+      return NextResponse.json({ error: exErr.message }, { status: 500 });
+    }
+    if (existing?.id) {
+      return NextResponse.json({ error: 'Email already registered' }, { status: 409 });
+    }
+
+    // 4) Crear tenant
+    const apiKey = `KEY_${(globalThis.crypto?.randomUUID?.() as string) || Date.now()}`;
+
+    const { data: inserted, error: insErr } = await supabaseAdmin
+      .from('tenants')
+      .insert({
+        email,
+        password, // MVP: texto plano (luego lo cambiaremos por hash)
+        api_key: apiKey,
+        is_active: true,
+      })
+      .select('id, api_key')
+      .single<{ id: string; api_key: string }>();
+
+    if (insErr || !inserted) {
+      return NextResponse.json(
+        { error: insErr?.message || 'Failed to create tenant' },
+        { status: 500 }
+      );
+    }
+
+    // 5) Asignar créditos iniciales
+    const { error: cErr } = await supabaseAdmin
+      .from('tenant_credits')
+      .insert({ tenant_id: inserted.id, credits });
+
+    if (cErr) {
+      // Si falla la inserción de créditos, dejamos creado el tenant, pero avisamos el fallo
+      return NextResponse.json(
+        { error: `Tenant created but credits failed: ${cErr.message}`, apiKey: inserted.api_key, tenantId: inserted.id },
+        { status: 207 } // Multi-Status (informativo)
+      );
+    }
+
+    // 6) Respuesta OK
+    return NextResponse.json(
+      { apiKey: inserted.api_key, tenantId: inserted.id },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message || 'Bad request' }, { status: 400 });
+  }
 }
