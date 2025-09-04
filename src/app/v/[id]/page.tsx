@@ -4,9 +4,14 @@
 import { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 
+/**
+ * Shape of the data returned by `/api/verify-file`. The tenant name is
+ * optional and allows the UI to present a human‑readable issuer name.
+ */
 type VerifyData = {
   id: string;
   tenantId: string | null;
+  tenantName: string | null;
   originalUrl: string | null;
   processedUrl: string | null;
   createdAt: string | null;
@@ -32,7 +37,7 @@ export default function VerifyPage() {
           setLoading(false);
           // Redirección automática opcional: /v/{id}?auto=1
           if (search.get('auto') === '1' && json?.originalUrl) {
-            window.location.replace(json.originalUrl);
+            window.location.replace(json.originalUrl as string);
           }
         }
       } catch (e: any) {
@@ -47,16 +52,23 @@ export default function VerifyPage() {
     };
   }, [id, search]);
 
-  const created =
-    data?.createdAt ? new Date(data.createdAt) : null;
+  const created = data?.createdAt ? new Date(data.createdAt) : null;
 
   return (
-    <main style={{ display: 'grid', placeItems: 'center', minHeight: '70vh', padding: '2rem' }}>
+    <main
+      style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'flex-start',
+        minHeight: '70vh',
+        padding: '2rem',
+      }}
+    >
       <div style={{ width: '100%', maxWidth: 720 }}>
-        <h1 style={{ fontSize: '1.9rem', marginBottom: '0.25rem' }}>
+        <h1 style={{ fontSize: '2rem', fontWeight: 600, marginBottom: '0.5rem' }}>
           Verificación de credencial
         </h1>
-        <p style={{ color: '#666', marginBottom: '1.25rem' }}>
+        <p style={{ color: '#666', marginBottom: '1rem' }}>
           ID: <code>{id}</code>
         </p>
 
@@ -74,20 +86,26 @@ export default function VerifyPage() {
             style={{
               border: '1px solid #e6e6e6',
               borderRadius: 12,
-              padding: '1rem',
+              padding: '1.25rem',
               display: 'grid',
-              gap: '0.75rem',
+              gap: '1rem',
               background: '#fafafa',
             }}
           >
-            <p style={{ fontSize: '1.1rem' }}>
-              ✅ <b>Credencial original y verificable</b>
+            <p style={{ fontSize: '1.1rem', margin: 0, display: 'flex', alignItems: 'center' }}>
+              ✅ <b style={{ marginLeft: 4 }}>Credencial original y verificable</b>
             </p>
 
-            <div style={{ display: 'grid', gap: '0.25rem', color: '#444' }}>
+            <div style={{ display: 'grid', gap: '0.35rem', color: '#444', fontSize: '0.95rem' }}>
               <div>
                 <b>Emisor:</b>{' '}
-                <span>{data.tenantId ? `Tenant ${data.tenantId}` : '—'}</span>
+                <span>
+                  {data.tenantName
+                    ? data.tenantName
+                    : data.tenantId
+                    ? `Tenant ${data.tenantId}`
+                    : '—'}
+                </span>
               </div>
               <div>
                 <b>Fecha de emisión:</b>{' '}
@@ -108,9 +126,9 @@ export default function VerifyPage() {
             <div
               style={{
                 display: 'grid',
-                gap: '0.5rem',
-                marginTop: '0.25rem',
-                gridTemplateColumns: '1fr',
+                gap: '0.75rem',
+                marginTop: '0.5rem',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
               }}
             >
               <a
@@ -137,7 +155,7 @@ export default function VerifyPage() {
                 download={`credential-${id}.pdf`}
                 style={{
                   display: 'inline-block',
-                  padding: '0.6rem 0.9rem',
+                  padding: '0.7rem 0.9rem',
                   borderRadius: 10,
                   border: '1px solid #ccc',
                   background: '#fff',
@@ -157,7 +175,7 @@ export default function VerifyPage() {
                   rel="noopener noreferrer"
                   style={{
                     display: 'inline-block',
-                    padding: '0.6rem 0.9rem',
+                    padding: '0.7rem 0.9rem',
                     borderRadius: 10,
                     border: '1px solid #ccc',
                     background: '#fff',
