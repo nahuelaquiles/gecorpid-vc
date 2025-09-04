@@ -26,8 +26,9 @@ export default function LoginBox() {
         if (error) throw error;
       }
       window.location.href = "/dashboard";
-    } catch (err: any) {
-      setMsg(err?.message ?? "Error");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error';
+      setMsg(message);
     } finally {
       setLoading(false);
     }

@@ -42,6 +42,7 @@ export default function AdminPage() {
   const [toast, setToast] = useState<string>("");
 
   // Bootstrap from sessionStorage
+  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     const fromSS = typeof window !== "undefined" ? sessionStorage.getItem(SS_KEY) : null;
     if (fromSS) {
@@ -49,6 +50,7 @@ export default function AdminPage() {
       void tryLogin(fromSS);
     }
   }, []);
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -84,10 +86,11 @@ export default function AdminPage() {
       setFetchTenantsState("success");
       sessionStorage.setItem(SS_KEY, secret);
       showToast("Admin authenticated.");
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unknown error";
       setFetchTenantsState("error");
       setLogged(false);
-      showToast(`Login failed: ${err?.message || "Unknown error"}`);
+      showToast(`Login failed: ${message}`);
     }
   }
 
@@ -109,9 +112,10 @@ export default function AdminPage() {
       setTenants(data.tenants || []);
       setFetchTenantsState("success");
       showToast("Tenants refreshed.");
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unknown error";
       setFetchTenantsState("error");
-      showToast(`Refresh error: ${err?.message || "Unknown error"}`);
+      showToast(`Refresh error: ${message}`);
     }
   }
 
@@ -122,7 +126,14 @@ export default function AdminPage() {
     try {
       // Enviamos claves "amigables" por compatibilidad:
       // - initial_credits y credits
-      const payload: any = {
+      interface CreateTenantPayload {
+        name: string | null;
+        email: string;
+        password: string;
+        initial_credits: number;
+        credits: number;
+      }
+      const payload: CreateTenantPayload = {
         name: tName || null,
         email: tEmail,
         password: tPassword,
@@ -151,9 +162,10 @@ export default function AdminPage() {
       setTCredits(10);
       showToast("Tenant created.");
       void refreshTenants();
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unknown error";
       setCreating("error");
-      setCreateError(err?.message || "Unknown error");
+      setCreateError(message);
     }
   }
 
@@ -165,10 +177,18 @@ export default function AdminPage() {
       const amount = Number(deltaCredits) || 0;
 
       // Compatibilidad: enviamos varias variantes de nombres
-      const payload: any = {
-        credits: amount,     // usado por nuestro diseño
-        amount,              // alias común
-        delta: amount,       // alias común
+      interface AddCreditsPayload {
+        credits: number;
+        amount: number;
+        delta: number;
+        tenantId?: string;
+        tenant_id?: string;
+        email?: string;
+      }
+      const payload: AddCreditsPayload = {
+        credits: amount, // usado por nuestro diseño
+        amount, // alias común
+        delta: amount, // alias común
       };
       if (targetTenantId.trim()) {
         payload.tenantId = targetTenantId.trim(); // camel
@@ -196,9 +216,10 @@ export default function AdminPage() {
       setTargetEmail("");
       setDeltaCredits(1);
       void refreshTenants();
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unknown error";
       setAddingCredits("error");
-      setCreditsError(err?.message || "Unknown error");
+      setCreditsError(message);
     }
   }
 

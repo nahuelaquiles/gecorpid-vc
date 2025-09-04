@@ -84,10 +84,8 @@ export async function GET(req: NextRequest) {
       { tenants },
       { headers: { "Cache-Control": "no-store" } }
     );
-  } catch (err: any) {
-    return NextResponse.json(
-      { error: err?.message || "Unexpected server error." },
-      { status: 500 }
-    );
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unexpected server error.";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

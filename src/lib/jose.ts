@@ -19,6 +19,20 @@ interface SignVcOptions {
   expiresInDays?: number;
 }
 
+interface CredentialSubject {
+  id?: string;
+  [key: string]: unknown;
+}
+
+interface VerifiableCredential {
+  credentialSubject?: CredentialSubject;
+  [key: string]: unknown;
+}
+
+interface SignVcPayload {
+  vc: VerifiableCredential;
+}
+
 /**
  * Firma una credencial verificable empaquetada en un JWT.
  * El primer argumento debe ser un objeto con propiedad `vc` que contenga la credencial.
@@ -26,7 +40,7 @@ interface SignVcOptions {
  * @param options Opciones de firma: `kid` y `expiresInDays` (días de expiración)
  */
 export async function signVc(
-  payload: { vc: any },
+  payload: SignVcPayload,
   options: SignVcOptions = {},
 ) {
   const { privateJwk, issuerDid } = getEnv();
