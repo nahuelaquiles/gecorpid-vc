@@ -19,7 +19,8 @@ type UploadItem = {
   progress: number; // 0..100
   status: "queued" | "uploading" | "done" | "error";
   error?: string;
-  serverId?: string; // file id from API
+  serverId?: string; // file id from API, if provided
+  downloadUrl?: string; // object URL when API returns a PDF
 };
 
 const LS_KEYS = ["apiKey", "tenantId", "gecorpid_apiKey", "gecorpid_tenantId"];
@@ -33,7 +34,6 @@ function getFromLocalStorage(): { apiKey: string | null; tenantId: string | null
     if (v && !apiKey && k.toLowerCase().includes("apikey")) apiKey = v;
     if (v && !tenantId && k.toLowerCase().includes("tenant")) tenantId = v;
   }
-  // Compat: some previous login stored both under plain names
   apiKey = apiKey || localStorage.getItem("apiKey");
   tenantId = tenantId || localStorage.getItem("tenantId");
   return { apiKey, tenantId };
@@ -71,7 +71,7 @@ export default function ClientPage() {
       const data = await res.json();
       if (res.ok) setCredits(data.credits ?? 0);
       else throw new Error(data?.error || "Unable to load credits");
-    } catch (e: any) {
+    } catch {
       setCredits(null);
     } finally {
       setLoadingCredits(false);
@@ -89,7 +89,7 @@ export default function ClientPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Unable to load files");
       setHistory(data.items || []);
-    } catch (e) {
+    } catch {
       setHistory([]);
     } finally {
       setLoadingHistory(false);
@@ -99,7 +99,6 @@ export default function ClientPage() {
   function onChooseFiles(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files ? Array.from(e.target.files) : [];
     enqueue(files);
-    // reset file input so the same file can be selected again later
     if (inputRef.current) inputRef.current.value = "";
   }
 
@@ -113,7 +112,6 @@ export default function ClientPage() {
       status: "queued",
     }));
     setQueue((prev) => [...items, ...prev]); // newest on top
-    // auto-start
     setTimeout(() => runQueue(), 0);
   }
 
@@ -124,6 +122,7 @@ export default function ClientPage() {
       const xhr = new XMLHttpRequest();
       xhr.open("POST", "/api/upload", true);
       xhr.setRequestHeader("x-api-key", apiKey);
+      xhr.responseType = "blob"; // soporta PDF/binario o JSON como texto
 
       xhr.upload.onprogress = (ev) => {
         if (!ev.lengthComputable) return;
@@ -131,30 +130,58 @@ export default function ClientPage() {
         setQueue((prev) => prev.map((q) => (q.id === item.id ? { ...q, progress: pct, status: "uploading" } : q)));
       };
 
-      xhr.onload = () => {
+      xhr.onload = async () => {
+        const ok = xhr.status >= 200 && xhr.status < 300;
+        const ct = (xhr.getResponseHeader("content-type") || "").toLowerCase();
+        const blob = xhr.response as Blob;
+
+        const fail = async (msg?: string) => {
+          let text = msg;
+          try {
+            if (!text) text = await blob.text();
+          } catch {}
+          setQueue((prev) =>
+            prev.map((q) => (q.id === item.id ? { ...q, status: "error", error: text || `HTTP ${xhr.status}`, progress: 100 } : q))
+          );
+          resolve({ ...item, status: "error", error: text || `HTTP ${xhr.status}`, progress: 100 });
+        };
+
+        if (!ok) return void (await fail());
+
         try {
-          const ok = xhr.status >= 200 && xhr.status < 300;
-          const body = xhr.responseText ? JSON.parse(xhr.responseText) : {};
-          if (!ok) {
-            const msg = body?.error || `HTTP ${xhr.status}`;
+          // Caso 1: el endpoint responde JSON (p. ej., { id, processedUrl })
+          if (ct.includes("application/json")) {
+            const text = await blob.text();
+            const body = JSON.parse(text || "{}");
+            const serverId = body?.id || body?.fileId || null;
             setQueue((prev) =>
-              prev.map((q) => (q.id === item.id ? { ...q, status: "error", error: String(msg), progress: 100 } : q))
+              prev.map((q) => (q.id === item.id ? { ...q, status: "done", progress: 100, serverId } : q))
             );
-            resolve({ ...item, status: "error", error: String(msg), progress: 100 });
+            resolve({ ...item, status: "done", progress: 100, serverId });
             return;
           }
-          const serverId = body?.id || body?.fileId || null;
-          setQueue((prev) =>
-            prev.map((q) => (q.id === item.id ? { ...q, status: "done", progress: 100, serverId } : q))
-          );
-          resolve({ ...item, status: "done", progress: 100, serverId });
-        } catch (err: any) {
+
+          // Caso 2: el endpoint responde un PDF procesado (binario)
+          // Creamos un Object URL y disparamos descarga automática.
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          const base = item.file.name.replace(/\.pdf$/i, "");
+          a.download = `${base}-qr.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          // guardamos el url por si el usuario quiere descargar de nuevo enseguida
           setQueue((prev) =>
             prev.map((q) =>
-              q.id === item.id ? { ...q, status: "error", error: err?.message || "Parse error", progress: 100 } : q
+              q.id === item.id ? { ...q, status: "done", progress: 100, downloadUrl: url } : q
             )
           );
-          resolve({ ...item, status: "error", error: err?.message || "Parse error", progress: 100 });
+          // liberar el blob después de un rato
+          setTimeout(() => URL.revokeObjectURL(url), 60_000);
+          resolve({ ...item, status: "done", progress: 100, downloadUrl: url });
+        } catch (err: any) {
+          await fail(err?.message);
         }
       };
 
@@ -176,12 +203,10 @@ export default function ClientPage() {
   const uploading = useMemo(() => queue.some((q) => q.status === "uploading"), [queue]);
 
   async function runQueue() {
-    // upload sequentially to keep credits in sync and avoid rate limits
     for (const qi of [...queue].reverse()) {
       if (qi.status !== "queued") continue;
       const updated = await uploadOne(qi);
       if (updated.status === "done") {
-        // refresh credits & history after each successful upload
         await Promise.all([refreshCredits(), refreshHistory()]);
       }
     }
@@ -281,6 +306,13 @@ export default function ClientPage() {
                     <div className="bar">
                       <div className="fill" style={{ width: `${q.progress}%` }} />
                     </div>
+                    {q.downloadUrl && q.status === "done" && (
+                      <div className="again">
+                        <a href={q.downloadUrl} download>
+                          Download again
+                        </a>
+                      </div>
+                    )}
                     {q.error && <div className="error">Error: {q.error}</div>}
                   </li>
                 ))}
@@ -371,6 +403,7 @@ h3{margin:0 0 8px 0}
 .bar{height:8px; background:rgba(255,255,255,.08); border-radius:999px; overflow:hidden; margin-top:6px}
 .fill{height:100%; background:linear-gradient(90deg,var(--accent),var(--accent-2))}
 .error{margin-top:6px; color:var(--danger); font-size:12px}
+.again{margin-top:6px; font-size:13px}
 .qhead{display:flex; align-items:center; justify-content:space-between; margin-top:10px}
 .qactions{display:flex; gap:8px}
 .table{display:grid; gap:8px; margin-top:8px}
