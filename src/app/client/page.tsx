@@ -82,7 +82,7 @@ export default function ClientPage() {
     if (!apiKey) return;
     setLoadingHistory(true);
     try {
-      const res = await fetch("/api/files/list?limit=20", {
+      const res = await fetch("/api/files/list?limit=50", {
         headers: { "x-api-key": apiKey },
         cache: "no-store",
       });
@@ -149,7 +149,7 @@ export default function ClientPage() {
         if (!ok) return void (await fail());
 
         try {
-          // Caso 1: el endpoint responde JSON (p. ej., { id, processedUrl })
+          // Caso 1: JSON
           if (ct.includes("application/json")) {
             const text = await blob.text();
             const body = JSON.parse(text || "{}");
@@ -160,9 +160,7 @@ export default function ClientPage() {
             resolve({ ...item, status: "done", progress: 100, serverId });
             return;
           }
-
-          // Caso 2: el endpoint responde un PDF procesado (binario)
-          // Creamos un Object URL y disparamos descarga automática.
+          // Caso 2: PDF/binario → descarga
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = url;
@@ -171,13 +169,11 @@ export default function ClientPage() {
           document.body.appendChild(a);
           a.click();
           a.remove();
-          // guardamos el url por si el usuario quiere descargar de nuevo enseguida
           setQueue((prev) =>
             prev.map((q) =>
               q.id === item.id ? { ...q, status: "done", progress: 100, downloadUrl: url } : q
             )
           );
-          // liberar el blob después de un rato
           setTimeout(() => URL.revokeObjectURL(url), 60_000);
           resolve({ ...item, status: "done", progress: 100, downloadUrl: url });
         } catch (err: any) {
@@ -230,6 +226,15 @@ export default function ClientPage() {
     localStorage.removeItem("apiKey");
     localStorage.removeItem("tenantId");
     location.href = "/login";
+  }
+
+  async function copy(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      alert("Copied to clipboard");
+    } catch {
+      alert(text);
+    }
   }
 
   if (!apiKey || !tenantId) {
@@ -330,21 +335,49 @@ export default function ClientPage() {
           ) : history.length === 0 ? (
             <p className="muted">No files yet.</p>
           ) : (
-            <div className="table">
-              <div className="thead">
-                <div>ID</div>
-                <div>Verify</div>
-                <div>Original</div>
-                <div>With QR</div>
+            <div className="tableWrap">
+              <div className="tableScroll">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th style={{width: "44%"}}>ID</th>
+                      <th style={{width: "22%"}}>Verify</th>
+                      <th style={{width: "17%"}}>Original</th>
+                      <th style={{width: "17%"}}>With QR</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {history.map((it) => (
+                      <tr key={it.id}>
+                        <td className="mono idcell" title={it.id}>{it.id}</td>
+                        <td>
+                          <div className="cellActions">
+                            <a href={it.verifyUrl} target="_blank" rel="noreferrer">open</a>
+                            <button className="btn tiny ghost" onClick={() => copy(it.verifyUrl)}>copy</button>
+                          </div>
+                        </td>
+                        <td>
+                          {it.originalUrl ? (
+                            <a href={it.originalUrl} target="_blank" rel="noreferrer">open</a>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td>
+                          {it.processedUrl ? (
+                            <a href={it.processedUrl} target="_blank" rel="noreferrer">open</a>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-              {history.map((it) => (
-                <div className="trow" key={it.id}>
-                  <div className="mono">{it.id}</div>
-                  <div><a href={it.verifyUrl} target="_blank" rel="noreferrer">/v/{it.id}</a></div>
-                  <div>{it.originalUrl ? <a href={it.originalUrl} target="_blank" rel="noreferrer">open</a> : "—"}</div>
-                  <div>{it.processedUrl ? <a href={it.processedUrl} target="_blank" rel="noreferrer">open</a> : "—"}</div>
-                </div>
-              ))}
+              <div className="legend">
+                <span className="watermark">developed by gecorp.com.ar</span>
+              </div>
             </div>
           )}
         </article>
@@ -386,10 +419,11 @@ const styles = `
 h3{margin:0 0 8px 0}
 .muted{color:var(--muted)}
 .small{font-size:13px}
-.btn{display:inline-flex;align-items:center;justify-content:center;height:40px;padding:0 14px;border-radius:10px;border:1px solid transparent; box-shadow:var(--shadow)}
+.btn{display:inline-flex;align-items:center;justify-content:center;height:34px;padding:0 12px;border-radius:10px;border:1px solid transparent; box-shadow:var(--shadow); font-size:13px}
 .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent-2)); color:#fff}
 .btn.ghost{background:transparent; border-color:rgba(255,255,255,.24)}
 .btn.danger{background:transparent; color:#fff; border-color:var(--danger)}
+.btn.tiny{height:28px; padding:0 10px; font-size:12px}
 .drop{display:flex; gap:10px; align-items:center}
 .drop input[type=file]{display:none}
 .qlist{list-style:none; padding:0; margin:10px 0 0 0; display:grid; gap:10px}
@@ -406,9 +440,23 @@ h3{margin:0 0 8px 0}
 .again{margin-top:6px; font-size:13px}
 .qhead{display:flex; align-items:center; justify-content:space-between; margin-top:10px}
 .qactions{display:flex; gap:8px}
-.table{display:grid; gap:8px; margin-top:8px}
-.thead,.trow{display:grid; grid-template-columns: 1.6fr 1fr .8fr .8fr; gap:10px; align-items:center}
-.thead{font-weight:700; border:1px dashed rgba(255,255,255,.18); padding:8px; border-radius:10px}
-.trow{padding:8px; border-radius:10px; background:rgba(255,255,255,.05)}
+
+/* HISTORY TABLE */
+.tableWrap{margin-top:8px; border:1px solid rgba(255,255,255,.14); border-radius:12px; overflow:hidden; background:rgba(255,255,255,.04)}
+.tableScroll{max-height:520px; overflow:auto}
+.table{width:100%; border-collapse:separate; border-spacing:0}
+.table thead th{position:sticky; top:0; background:rgba(255,255,255,.06); backdrop-filter:blur(6px); border-bottom:1px solid rgba(255,255,255,.18); text-align:left; padding:10px 12px; font-weight:700}
+.table tbody td{padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.08); vertical-align:middle}
+.idcell{max-width: 0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.cellActions{display:flex; gap:8px; align-items:center}
 .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
+
+.legend{display:flex; justify-content:flex-end; padding:8px 10px}
+.watermark{font-size:12px; opacity:.55}
+
+/* light theme tweaks */
+@media (prefers-color-scheme: light){
+  .tableWrap{background:#fff}
+  .table thead th{background:#f3f5fb}
+}
 `;
