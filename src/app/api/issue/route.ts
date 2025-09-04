@@ -10,12 +10,6 @@ function getEnv(name: string): string | null {
   return process.env[name] ?? null;
 }
 
-function required(name: string): string {
-  const v = getEnv(name);
-  if (!v) throw new Error(`Missing env: ${name}`);
-  return v;
-}
-
 async function importPrivateEd25519(jwkJson: string): Promise<KeyLike> {
   const jwk = JSON.parse(jwkJson) as JWK;
   return importJWK(jwk, 'EdDSA');

@@ -54,11 +54,13 @@ export default function ClientPage() {
     setAuth(getFromLocalStorage());
   }, []);
 
+  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     if (!apiKey) return;
     refreshCredits();
     refreshHistory();
   }, [apiKey]);
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   async function refreshCredits() {
     if (!apiKey) return;
@@ -176,8 +178,8 @@ export default function ClientPage() {
           );
           setTimeout(() => URL.revokeObjectURL(url), 60_000);
           resolve({ ...item, status: "done", progress: 100, downloadUrl: url });
-        } catch (err: any) {
-          await fail(err?.message);
+        } catch (err: unknown) {
+          await fail(err instanceof Error ? err.message : undefined);
         }
       };
 

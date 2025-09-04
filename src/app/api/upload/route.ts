@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
     const pngImage = await pdfDoc.embedPng(qrPng);
     const pngDims = pngImage.scale(0.2);
     const [firstPage] = pdfDoc.getPages();
-    const { width, height } = firstPage.getSize();
+    const { width } = firstPage.getSize();
     firstPage.drawImage(pngImage, {
       x: Math.max(10, width - pngDims.width - 10),
       y: 10,
@@ -123,7 +123,8 @@ export async function POST(req: NextRequest) {
         'Cache-Control': 'no-store',
       },
     });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'Upload failed' }, { status: 500 });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Upload failed';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

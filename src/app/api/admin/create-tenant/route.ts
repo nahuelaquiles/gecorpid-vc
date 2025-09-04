@@ -89,7 +89,8 @@ export async function POST(req: NextRequest) {
       { apiKey: inserted.api_key, tenantId: inserted.id },
       { headers: { 'Cache-Control': 'no-store' } }
     );
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'Bad request' }, { status: 400 });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Bad request';
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }

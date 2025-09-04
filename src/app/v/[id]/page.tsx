@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 
 type VerifyData = {
   id: string;
@@ -35,9 +36,10 @@ export default function VerifyPage() {
             window.location.replace(json.originalUrl);
           }
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (!cancelled) {
-          setErrorMsg(e?.message || 'Not found');
+          const message = e instanceof Error ? e.message : 'Not found';
+          setErrorMsg(message);
           setLoading(false);
         }
       }
@@ -181,9 +183,9 @@ export default function VerifyPage() {
         )}
 
         <div style={{ marginTop: '1rem' }}>
-          <a href="/" style={{ color: '#555', textDecoration: 'underline' }}>
+          <Link href="/" style={{ color: '#555', textDecoration: 'underline' }}>
             Volver al inicio
-          </a>
+          </Link>
         </div>
       </div>
     </main>

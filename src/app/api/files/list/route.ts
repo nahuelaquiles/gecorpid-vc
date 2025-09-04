@@ -8,6 +8,13 @@ type TenantRow = {
   is_active: boolean | null;
 };
 
+interface FileRow {
+  id: string;
+  created_at?: string | null;
+  original_path?: string | null;
+  processed_path?: string | null;
+}
+
 function readApiKey(req: NextRequest): string | null {
   const hdr = req.headers.get("x-api-key");
   if (hdr) return hdr.trim();
@@ -71,7 +78,7 @@ export async function GET(req: NextRequest) {
     const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL || req.nextUrl.origin).replace(/\/$/, "");
     const bucket = "vcs";
 
-    const items = (fRes.data as any[]).map((f) => {
+    const items = (fRes.data as FileRow[]).map((f) => {
       const originalUrl = f.original_path
         ? supabase.storage.from(bucket).getPublicUrl(f.original_path).data.publicUrl
         : null;
@@ -94,7 +101,8 @@ export async function GET(req: NextRequest) {
       { tenantId: tenant.id, count: items.length, limit: lim, items },
       { headers: { "Cache-Control": "no-store" } }
     );
-  } catch (err: any) {
-    return NextResponse.json({ error: err?.message || "Unexpected server error." }, { status: 500 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unexpected server error.";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

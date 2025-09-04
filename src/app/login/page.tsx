@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -36,8 +37,9 @@ export default function LoginPage() {
 
       // Redirige al panel del cliente (lo crearemos en el paso 4)
       router.push('/client');
-    } catch (err: any) {
-      setErrorMsg(err?.message || 'Unexpected error');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unexpected error';
+      setErrorMsg(message);
     } finally {
       setLoading(false);
     }
@@ -107,7 +109,9 @@ export default function LoginPage() {
         </form>
 
         <div style={{ marginTop: '1rem', fontSize: '0.92rem' }}>
-          <a href="/" style={{ color: '#555', textDecoration: 'underline' }}>Volver al inicio</a>
+          <Link href="/" style={{ color: '#555', textDecoration: 'underline' }}>
+            Volver al inicio
+          </Link>
         </div>
 
         <div style={{ marginTop: '1rem', color: '#666', fontSize: '0.9rem' }}>

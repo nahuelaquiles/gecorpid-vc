@@ -10,6 +10,13 @@ const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE!;
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE);
 
+interface FileRow {
+  original_path: string;
+  processed_path?: string | null;
+  tenant_id?: string | null;
+  created_at?: string | null;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const id = req.nextUrl.searchParams.get('id');
@@ -22,7 +29,7 @@ export async function GET(req: NextRequest) {
       .from('files')
       .select('*')
       .eq('id', id)
-      .single<any>();
+      .single<FileRow>();
 
     if (error || !row) {
       return NextResponse.json({ error: 'File not found' }, { status: 404 });
@@ -34,7 +41,10 @@ export async function GET(req: NextRequest) {
     const processedPath: string | undefined = row.processed_path;
 
     const { data: o } = bucket.getPublicUrl(originalPath);
-    const { data: p } = processedPath ? bucket.getPublicUrl(processedPath) : { data: undefined as any };
+    type PublicUrl = { publicUrl: string };
+    const { data: p } = processedPath
+      ? bucket.getPublicUrl(processedPath)
+      : { data: undefined as PublicUrl | undefined };
 
     return NextResponse.json(
       {
@@ -46,7 +56,8 @@ export async function GET(req: NextRequest) {
       },
       { headers: { 'Cache-Control': 'no-store' } }
     );
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'Failed' }, { status: 500 });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Failed';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
