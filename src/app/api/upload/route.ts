@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
 
     // Leyendas
     const bottomLabel = 'developed by gecorp.com.ar';
-    const topLabel = 'original verifiable credential';
+    const topLabel = 'Original verifiable credential';
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const fontSize = 7; // el tamaño que confirmaste que se ve bien
     const labelGap = 6; // separación entre QR y la leyenda superior
