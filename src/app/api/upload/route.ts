@@ -74,10 +74,10 @@ export async function POST(req: NextRequest) {
     const pdfDoc = await PDFDocument.load(pdfBuffer);
     const pngImage = await pdfDoc.embedPng(qrPngBuffer);
     const [firstPage] = pdfDoc.getPages();
-    const { width, height } = firstPage.getSize();
+    const { width } = firstPage.getSize();
 
-    // Tamaño del QR (escala respecto del ancho de página, con tope)
-    const targetSize = Math.min(130, Math.max(80, Math.floor(width * 0.18)));
+    // Tamaño del QR (ajustado: 14 % del ancho, mínimo 60 y máximo 100)
+    const targetSize = Math.min(100, Math.max(60, Math.floor(width * 0.14)));
     const scale = targetSize / Math.max(pngImage.width, pngImage.height);
     const qrW = pngImage.width * scale;
     const qrH = pngImage.height * scale;
@@ -86,19 +86,19 @@ export async function POST(req: NextRequest) {
     const margin = 10;
     const label = 'developed by gecorp.com.ar';
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    const fontSize = 9;
+    const fontSize = 8; // leyenda más pequeña
     const labelHeight = fontSize + 2;
 
     // Posición: QR arriba de la leyenda, todo en la esquina inferior derecha
     const x = Math.max(margin, width - qrW - margin);
-    const y = margin + labelHeight; // subimos el QR para dejar sitio al texto
+    const y = margin + labelHeight;
 
     firstPage.drawImage(pngImage, { x, y, width: qrW, height: qrH });
 
     // Leyenda centrada bajo el QR, con ligera transparencia (marca de agua)
     const textWidth = font.widthOfTextAtSize(label, fontSize);
     const textX = x + (qrW - textWidth) / 2;
-    const textY = margin; // debajo del QR
+    const textY = margin;
     firstPage.drawText(label, {
       x: textX,
       y: textY,
@@ -127,12 +127,13 @@ export async function POST(req: NextRequest) {
     });
     if (up2) return NextResponse.json({ error: up2.message }, { status: 500 });
 
-    // 8) Registrar en DB y descontar crédito
+    // 8) Registrar en DB y descontar crédito (incluye created_at para mostrar fecha/hora de emisión)
     const { error: insErr } = await supabaseAdmin.from('files').insert({
       id: verificationId,
       tenant_id: tenant.id,
       original_path: originalPath,
       processed_path: processedPath,
+      created_at: new Date().toISOString(),
     });
     if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 });
 
