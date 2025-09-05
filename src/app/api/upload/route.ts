@@ -76,26 +76,26 @@ export async function POST(req: NextRequest) {
     const [firstPage] = pdfDoc.getPages();
     const { width } = firstPage.getSize();
 
-    // Tamaño del QR (ajustado: 14 % del ancho, mínimo 60 y máximo 100)
-    const targetSize = Math.min(100, Math.max(60, Math.floor(width * 0.14)));
+    // Tamaño del QR más chico: 10% del ancho, min 42 px, max 72 px
+    const targetSize = Math.min(72, Math.max(42, Math.floor(width * 0.10)));
     const scale = targetSize / Math.max(pngImage.width, pngImage.height);
     const qrW = pngImage.width * scale;
     const qrH = pngImage.height * scale;
 
-    // Reservamos espacio para la leyenda debajo del QR
+    // Leyenda más pequeña
     const margin = 10;
     const label = 'developed by gecorp.com.ar';
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    const fontSize = 8; // leyenda más pequeña
+    const fontSize = 7; // ↓ antes 8
     const labelHeight = fontSize + 2;
 
-    // Posición: QR arriba de la leyenda, todo en la esquina inferior derecha
+    // Posición: QR arriba de la leyenda, en esquina inferior derecha
     const x = Math.max(margin, width - qrW - margin);
     const y = margin + labelHeight;
 
     firstPage.drawImage(pngImage, { x, y, width: qrW, height: qrH });
 
-    // Leyenda centrada bajo el QR, con ligera transparencia (marca de agua)
+    // Leyenda centrada bajo el QR con opacidad
     const textWidth = font.widthOfTextAtSize(label, fontSize);
     const textX = x + (qrW - textWidth) / 2;
     const textY = margin;
@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
     });
     if (up2) return NextResponse.json({ error: up2.message }, { status: 500 });
 
-    // 8) Registrar en DB y descontar crédito (incluye created_at para mostrar fecha/hora de emisión)
+    // 8) Registrar en DB y descontar crédito
     const { error: insErr } = await supabaseAdmin.from('files').insert({
       id: verificationId,
       tenant_id: tenant.id,
@@ -153,7 +153,6 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (e: any) {
-    // Mantenemos el mismo estilo de error que antes para que la UI lo muestre bien
     return NextResponse.json({ error: e?.message || 'Upload failed' }, { status: 500 });
   }
 }
