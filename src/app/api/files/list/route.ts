@@ -57,12 +57,12 @@ export async function GET(req: NextRequest) {
     const sp = req.nextUrl.searchParams;
     const lim = Math.min(Math.max(parseInt(sp.get("limit") || "20", 10) || 20, 1), 100);
 
-    // 3) Traer archivos del tenant. Usamos select("*") para no fallar si no existe created_at.
-    //    Ordenamos por id desc como fallback estable.
+    // 3) Traer archivos del tenant: primero por fecha de emisión desc, luego por id desc
     const fRes = await supabase
       .from("files")
       .select("*")
       .eq("tenant_id", tenant.id)
+      .order("created_at", { ascending: false, nullsLast: true })
       .order("id", { ascending: false })
       .limit(lim);
 
