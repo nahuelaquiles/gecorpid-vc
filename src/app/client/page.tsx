@@ -1,3 +1,4 @@
+// src/app/client/page.tsx
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -40,6 +41,7 @@ function getFromLocalStorage(): { apiKey: string | null; tenantId: string | null
 
 export default function ClientPage() {
   const [{ apiKey, tenantId }, setAuth] = useState(getFromLocalStorage());
+  const [tenantName, setTenantName] = useState<string | null>(null);
   const [credits, setCredits] = useState<number | null>(null);
   const [loadingCredits, setLoadingCredits] = useState(false);
 
@@ -88,8 +90,10 @@ export default function ClientPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Unable to load files");
       setHistory(data.items || []);
+      setTenantName(data.tenantName || null);
     } catch {
       setHistory([]);
+      setTenantName(null);
     } finally {
       setLoadingHistory(false);
     }
@@ -101,6 +105,7 @@ export default function ClientPage() {
     if (inputRef.current) inputRef.current.value = "";
   }
 
+  // NO auto-run: el usuario debe pulsar "Start"
   function enqueue(files: File[]) {
     if (!files.length) return;
     const pdfs = files.filter((f) => f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf"));
@@ -110,8 +115,7 @@ export default function ClientPage() {
       progress: 0,
       status: "queued",
     }));
-    setQueue((prev) => [...items, ...prev]); // newest on top
-    setTimeout(() => runQueue(), 0);
+    setQueue((prev) => [...items, ...prev]); // agrega a la cola, pero NO corre automáticamente
   }
 
   async function uploadOne(item: UploadItem): Promise<UploadItem> {
@@ -148,7 +152,7 @@ export default function ClientPage() {
         if (!ok) return void (await fail());
 
         try {
-          // Caso 1: JSON
+          // Caso 1: JSON (API puede devolver JSON en algunos flujos)
           if (ct.includes("application/json")) {
             const text = await blob.text();
             const body = JSON.parse(text || "{}");
@@ -192,6 +196,7 @@ export default function ClientPage() {
   }
 
   const uploading = useMemo(() => queue.some((q) => q.status === "uploading"), [queue]);
+  const hasQueued = useMemo(() => queue.some((q) => q.status === "queued"), [queue]);
 
   async function runQueue() {
     for (const qi of queue) {
@@ -202,7 +207,7 @@ export default function ClientPage() {
     }
   }
 
-  // --- HISTORIAL ORDENADO ---
+  // --- HISTORIAL ORDENADO (más reciente primero) ---
   const sortedHistory = useMemo(() => {
     return [...history].sort((a, b) => {
       const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
@@ -227,6 +232,7 @@ export default function ClientPage() {
     setQueue([]);
     setHistory([]);
     setCredits(null);
+    setTenantName(null);
   }
 
   return (
@@ -237,7 +243,9 @@ export default function ClientPage() {
           <span className="logo">GECORPID • VC</span>
         </div>
         <div className="actions">
-          <span className="badge">{tenantId ? `Tenant ${tenantId}` : 'No Tenant'}</span>
+          <span className="badge">
+            {tenantName ? `Tenant ${tenantName}` : tenantId ? `Tenant ${tenantId}` : 'No Tenant'}
+          </span>
           {credits !== null && <span className="badge">Credits: {credits}</span>}
           <button className="btn tiny ghost" onClick={() => { refreshCredits(); refreshHistory(); }}>
             Refresh
@@ -258,6 +266,29 @@ export default function ClientPage() {
             </label>
             {uploading && <span className="status uploading">Uploading…</span>}
           </div>
+
+          {/* Encabezado de cola con botón Start */}
+          {queue.length > 0 && (
+            <div className="qhead">
+              <strong>Queue</strong>
+              <div className="qactions">
+                <button
+                  className="btn primary"
+                  disabled={!hasQueued || uploading}
+                  onClick={runQueue}
+                >
+                  Start
+                </button>
+                <button
+                  className="btn ghost"
+                  onClick={() => setQueue(q => q.filter(i => i.status !== "done"))}
+                  title="Clear items already processed"
+                >
+                  Clear done
+                </button>
+              </div>
+            </div>
+          )}
 
           <ul className="qlist">
             {queue.map((q) => (
