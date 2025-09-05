@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 
 type HistoryItem = {
   id: string;
@@ -141,7 +140,7 @@ export default function ClientPage() {
             if (!text) text = await blob.text();
           } catch {}
           setQueue((prev) =>
-            prev.map((q) => (q.id === item.id ? { ...q, status: "error", error: text || `HTTP ${xhr.status}`, progress: 100 } : q))
+            prev.map((q) => (q.id === item.id ? { ...q, status: "error", error: text || `HTTP ${xhr.status}`, progress: 100 } : q)),
           );
           resolve({ ...item, status: "error", error: text || `HTTP ${xhr.status}`, progress: 100 });
         };
@@ -155,7 +154,7 @@ export default function ClientPage() {
             const body = JSON.parse(text || "{}");
             const serverId = body?.id || body?.fileId || null;
             setQueue((prev) =>
-              prev.map((q) => (q.id === item.id ? { ...q, status: "done", progress: 100, serverId } : q))
+              prev.map((q) => (q.id === item.id ? { ...q, status: "done", progress: 100, serverId } : q)),
             );
             resolve({ ...item, status: "done", progress: 100, serverId });
             return;
@@ -170,9 +169,7 @@ export default function ClientPage() {
           a.click();
           a.remove();
           setQueue((prev) =>
-            prev.map((q) =>
-              q.id === item.id ? { ...q, status: "done", progress: 100, downloadUrl: url } : q
-            )
+            prev.map((q) => (q.id === item.id ? { ...q, status: "done", progress: 100, downloadUrl: url } : q)),
           );
           setTimeout(() => URL.revokeObjectURL(url), 60_000);
           resolve({ ...item, status: "done", progress: 100, downloadUrl: url });
@@ -183,9 +180,7 @@ export default function ClientPage() {
 
       xhr.onerror = () => {
         setQueue((prev) =>
-          prev.map((q) =>
-            q.id === item.id ? { ...q, status: "error", error: "Network error", progress: 100 } : q
-          )
+          prev.map((q) => (q.id === item.id ? { ...q, status: "error", error: "Network error", progress: 100 } : q)),
         );
         resolve({ ...item, status: "error", error: "Network error", progress: 100 });
       };
@@ -199,131 +194,92 @@ export default function ClientPage() {
   const uploading = useMemo(() => queue.some((q) => q.status === "uploading"), [queue]);
 
   async function runQueue() {
-    for (const qi of [...queue].reverse()) {
+    for (const qi of queue) {
       if (qi.status !== "queued") continue;
-      const updated = await uploadOne(qi);
-      if (updated.status === "done") {
-        await Promise.all([refreshCredits(), refreshHistory()]);
-      }
+      const res = await uploadOne(qi);
+      setQueue((prev) => prev.map((q) => (q.id === qi.id ? res : q)));
+      await Promise.all([refreshCredits(), refreshHistory()]);
     }
   }
 
-  function onDrop(ev: React.DragEvent) {
-    ev.preventDefault();
-    const files = Array.from(ev.dataTransfer.files || []);
-    enqueue(files);
-  }
-  function onDragOver(ev: React.DragEvent) {
-    ev.preventDefault();
-  }
+  // --- HISTORIAL ORDENADO ---
+  const sortedHistory = useMemo(() => {
+    return [...history].sort((a, b) => {
+      const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      if (ta !== tb) return tb - ta; // descendente
+      return b.id.localeCompare(a.id);
+    });
+  }, [history]);
 
-  function clearFinished() {
-    setQueue((prev) => prev.filter((q) => q.status !== "done" && q.status !== "error"));
-  }
+  const fmt = (s: string | null) => {
+    if (!s) return "—";
+    try {
+      return new Date(s).toLocaleString();
+    } catch {
+      return s;
+    }
+  };
 
   function logout() {
-    LS_KEYS.forEach((k) => localStorage.removeItem(k));
-    localStorage.removeItem("apiKey");
-    localStorage.removeItem("tenantId");
-    location.href = "/login";
-  }
-
-  async function copy(text: string) {
-    try {
-      await navigator.clipboard.writeText(text);
-      alert("Copied to clipboard");
-    } catch {
-      alert(text);
-    }
-  }
-
-  if (!apiKey || !tenantId) {
-    return (
-      <main className="wrap">
-        <header className="top">
-          <div className="brand">
-            <span className="dot" aria-hidden />
-            <span className="logo">GECORPID • VC — Client</span>
-          </div>
-          <Link className="btn primary" href="/login">Go to Login</Link>
-        </header>
-        <section className="card">
-          <h2>Not authenticated</h2>
-          <p className="muted">Please log in to get your <code>apiKey</code> and <code>tenantId</code>.</p>
-        </section>
-        <style jsx>{styles}</style>
-      </main>
-    );
+    LS_KEYS.forEach((key) => localStorage.removeItem(key));
+    setAuth(getFromLocalStorage());
+    setQueue([]);
+    setHistory([]);
+    setCredits(null);
   }
 
   return (
-    <main className="wrap" onDrop={onDrop} onDragOver={onDragOver}>
-      <header className="top">
+    <main className="wrap">
+      <div className="top">
         <div className="brand">
-          <span className="dot" aria-hidden />
-          <span className="logo">GECORPID • VC — Client</span>
+          <span className="dot" />
+          <span className="logo">GECORPID • VC</span>
         </div>
         <div className="actions">
-          <span className="badge">
-            {loadingCredits ? "Credits: …" : `Credits: ${credits ?? "—"}`}
-          </span>
-          <button className="btn ghost" onClick={() => { refreshCredits(); refreshHistory(); }}>
+          <span className="badge">{tenantId ? `Tenant ${tenantId}` : 'No Tenant'}</span>
+          {credits !== null && <span className="badge">Credits: {credits}</span>}
+          <button className="btn tiny ghost" onClick={() => { refreshCredits(); refreshHistory(); }}>
             Refresh
           </button>
           <button className="btn danger" onClick={logout}>Logout</button>
         </div>
-      </header>
+      </div>
 
       <section className="grid">
         <article className="card">
-          <h3>Upload PDFs</h3>
-          <p className="muted small">Drop PDFs here or choose files. Each upload consumes 1 credit.</p>
+          <h3>Upload new PDFs</h3>
+          <p className="muted small">Select one or more PDF files to upload and embed a QR code.</p>
 
           <div className="drop">
-            <input
-              ref={inputRef}
-              type="file"
-              multiple
-              accept="application/pdf"
-              onChange={onChooseFiles}
-            />
-            <button className="btn primary" onClick={() => inputRef.current?.click()}>
-              Choose files
-            </button>
+            <label className="btn primary">
+              Choose PDF(s)
+              <input type="file" accept=".pdf,application/pdf" multiple ref={inputRef} onChange={onChooseFiles} />
+            </label>
+            {uploading && <span className="status uploading">Uploading…</span>}
           </div>
 
-          {queue.length > 0 && (
-            <>
-              <div className="qhead">
-                <strong>Queue</strong>
-                <div className="qactions">
-                  <button className="btn tiny ghost" onClick={runQueue} disabled={uploading}>Start</button>
-                  <button className="btn tiny ghost" onClick={clearFinished}>Clear finished</button>
+          <ul className="qlist">
+            {queue.map((q) => (
+              <li key={q.id} className="qitem">
+                <div className="row1">
+                  <span className="name" title={q.file.name}>{q.file.name}</span>
+                  <span className={`status ${q.status}`}>{q.status}</span>
                 </div>
-              </div>
-              <ul className="qlist">
-                {queue.map((q) => (
-                  <li key={q.id} className={`qitem ${q.status}`}>
-                    <div className="row1">
-                      <span className="name" title={q.file.name}>{q.file.name}</span>
-                      <span className={`status ${q.status}`}>{q.status}</span>
-                    </div>
-                    <div className="bar">
-                      <div className="fill" style={{ width: `${q.progress}%` }} />
-                    </div>
-                    {q.downloadUrl && q.status === "done" && (
-                      <div className="again">
-                        <a href={q.downloadUrl} download>
-                          Download again
-                        </a>
-                      </div>
-                    )}
-                    {q.error && <div className="error">Error: {q.error}</div>}
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
+                <div className="bar">
+                  <div className="fill" style={{ width: `${q.progress}%` }} />
+                </div>
+                {q.downloadUrl && q.status === "done" && (
+                  <div className="again">
+                    <a href={q.downloadUrl} download>
+                      Download again
+                    </a>
+                  </div>
+                )}
+                {q.error && <div className="error">Error: {q.error}</div>}
+              </li>
+            ))}
+          </ul>
         </article>
 
         <article className="card">
@@ -340,20 +296,22 @@ export default function ClientPage() {
                 <table className="table">
                   <thead>
                     <tr>
-                      <th style={{width: "44%"}}>ID</th>
-                      <th style={{width: "22%"}}>Verify</th>
-                      <th style={{width: "17%"}}>Original</th>
-                      <th style={{width: "17%"}}>With QR</th>
+                      <th style={{width: "34%"}}>ID</th>
+                      <th style={{width: "18%"}}>Issued at</th>
+                      <th style={{width: "20%"}}>Verify</th>
+                      <th style={{width: "14%"}}>Original</th>
+                      <th style={{width: "14%"}}>With QR</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {history.map((it) => (
+                    {sortedHistory.map((it) => (
                       <tr key={it.id}>
                         <td className="mono idcell" title={it.id}>{it.id}</td>
+                        <td className="mono small">{fmt(it.createdAt)}</td>
                         <td>
                           <div className="cellActions">
                             <a href={it.verifyUrl} target="_blank" rel="noreferrer">open</a>
-                            <button className="btn tiny ghost" onClick={() => copy(it.verifyUrl)}>copy</button>
+                            <button className="btn tiny ghost" onClick={() => navigator.clipboard.writeText(it.verifyUrl)}>copy</button>
                           </div>
                         </td>
                         <td>
