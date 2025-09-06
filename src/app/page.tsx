@@ -411,15 +411,16 @@ export default function Home() {
         .how {
           max-width: 1160px;
           margin: 0 auto;
-          background: #0b1220;
-          border: 1px solid #0f172a;
+          background: var(--panel);
+          border: 1px solid var(--border);
           border-radius: var(--radius);
           box-shadow: var(--shadow);
           padding: 20px 16px 10px;
-          color: #fff;
+          color: var(--ink);
         }
+        /* Use the same ink colour for section headings inside the how panel */
         .contrast {
-          color: #fff;
+          color: var(--ink);
         }
         .steps {
           list-style: none;
@@ -433,8 +434,8 @@ export default function Home() {
           grid-template-columns: 34px 1fr;
           gap: 12px;
           align-items: start;
-          background: rgba(255, 255, 255, 0.06);
-          border: 1px solid rgba(255, 255, 255, 0.12);
+          background: #f9fafb;
+          border: 1px solid var(--border);
           border-radius: 12px;
           padding: 12px;
         }
@@ -446,18 +447,18 @@ export default function Home() {
           height: 34px;
           font-weight: 800;
           border-radius: 10px;
-          background: #1e40ff;
+          background: var(--brand);
           color: #fff;
-          border: 1px solid rgba(255, 255, 255, 0.2);
+          border: none;
         }
         .step h4 {
           margin: 2px 0 6px;
           font-size: 16px;
-          color: #fff;
+          color: var(--ink);
         }
         .step p {
           margin: 0;
-          color: #e5e7eb;
+          color: var(--muted);
           font-size: 14.5px;
         }
 
