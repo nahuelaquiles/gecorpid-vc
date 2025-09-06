@@ -22,39 +22,7 @@ export default function Home() {
 
   return (
     <main className="wrap">
-      {/* HEADER: logo and small legend */}
-      <header className="nav" role="banner">
-        <div className="brand">
-          <a
-            href="https://www.gecorp.com.ar"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="logoLink"
-            aria-label="Open GECORP website"
-          >
-            {logoOk ? (
-              <img
-                src="/Gecorp-Logo.iso.jpg"
-                alt="GECORP"
-                width={40}
-                height={40}
-                className="logoImg"
-                loading="eager"
-                decoding="async"
-                onError={() => setLogoOk(false)}
-              />
-            ) : (
-              <span className="logoFallback">GECORP</span>
-            )}
-          </a>
-          <span className="legend">
-            developed by{' '}
-            <a href="https://www.gecorp.com.ar" target="_blank" rel="noopener noreferrer">
-              gecorp.com.ar
-            </a>
-          </span>
-        </div>
-      </header>
+      {/* HEADER removed: brand moved to bottom */}
 
       {/* HERO: central title and call to action buttons */}
       <section className="hero" aria-labelledby="hero-title">
@@ -182,6 +150,33 @@ export default function Home() {
         </ul>
       </section>
 
+      {/* Brand block at the bottom: logo centered above the legend. Only the logo is a link. */}
+      <div className="brand brandBottom">
+        <a
+          href="https://www.gecorp.com.ar"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Open GECORP website"
+          className="logoLink"
+        >
+          {logoOk ? (
+            <img
+              src="/Gecorp-Logo.iso.jpg"
+              alt="GECORP"
+              width={40}
+              height={40}
+              className="logoImg"
+              loading="eager"
+              decoding="async"
+              onError={() => setLogoOk(false)}
+            />
+          ) : (
+            <span className="logoFallback">GECORP</span>
+          )}
+        </a>
+        <span className="legend">developed by gecorp</span>
+      </div>
+
       {/* FOOTER with DID link */}
       <footer className="footer">
         © {year} GecorpID —{' '}
@@ -245,9 +240,9 @@ export default function Home() {
           padding: 0;
         }
         .brand {
-          display: grid;
-          grid-auto-flow: row;
-          align-items: start;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
           gap: 6px;
         }
         .logoLink {
@@ -277,6 +272,12 @@ export default function Home() {
         }
         .legend a:hover {
           color: #111827;
+        }
+
+        /* Positioning for the brand at the bottom of the page */
+        .brandBottom {
+          max-width: 1160px;
+          margin: 0 auto;
         }
 
         /* HERO */
