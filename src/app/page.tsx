@@ -10,43 +10,65 @@ export default function Home() {
 
   return (
     <main className="wrap">
-      {/* NAV */}
+      {/* HEADER: solo logo + leyenda a la izquierda */}
       <header className="nav" role="banner">
-        <div className="brand" aria-label="GecorpID">
-          {logoOk ? (
-            <img
-              src="/Gecorp-Logo.iso.jpg"
-              alt="GECORP"
-              className="logoImg"
-              width={32}
-              height={32}
-              loading="eager"
-              decoding="async"
-              onError={() => setLogoOk(false)}
-            />
-          ) : (
-            <span className="logoText">GECORP</span>
-          )}
-          <span className="appName">GecorpID</span>
+        <div className="brand">
+          <a
+            href="https://www.gecorp.com.ar"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Open GECORP website"
+            className="logoLink"
+          >
+            {logoOk ? (
+              <img
+                src="/Gecorp-Logo.iso.jpg"
+                alt="GECORP"
+                width={40}
+                height={40}
+                className="logoImg"
+                loading="eager"
+                decoding="async"
+                onError={() => setLogoOk(false)}
+              />
+            ) : (
+              <span className="logoFallback">GECORP</span>
+            )}
+          </a>
+          <span className="legend">
+            developed by{" "}
+            <a
+              href="https://www.gecorp.com.ar"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              gecorp.com.ar
+            </a>
+          </span>
         </div>
-
-        <nav className="actions" aria-label="Primary">
-          <Link href="/login" className="btn btnPrimary" aria-label="Go to Client Login">
-            Client Login
-          </Link>
-          <Link href="/admin" className="btn btnSecondary" aria-label="Go to Admin">
-            Admin
-          </Link>
-        </nav>
       </header>
 
-      {/* HERO */}
+      {/* HERO: título centrado + botones debajo */}
       <section className="hero" aria-labelledby="hero-title">
-        <h1 id="hero-title" className="title">Verifiable PDFs, made simple</h1>
-        <p className="subtitle">
-          Issue trusted documents with cryptographic signatures and a public verification page.
-          Preserve the original PDF and provide a QR-stamped copy for frictionless checks.
-        </p>
+        <h1 id="hero-title" className="title">GecorpID</h1>
+        <p className="subtitle">Verifiable PDFs, made simple.</p>
+
+        <div className="cta">
+          <Link
+            href="/login"
+            className="btn btnPrimary btnLg"
+            aria-label="Go to Client Login"
+          >
+            Client Login
+          </Link>
+          <Link
+            href="/admin"
+            className="btn btnSecondary btnLg"
+            aria-label="Go to Admin area"
+          >
+            Admin
+          </Link>
+        </div>
       </section>
 
       {/* FEATURES */}
@@ -57,28 +79,35 @@ export default function Home() {
             <div className="icon" aria-hidden>🧾</div>
             <h3>Issue verifiable PDFs</h3>
             <p>
-              Upload a PDF and get a verification page at <code>/v/&lt;id&gt;</code>. The original file stays immutable.
+              Upload a PDF and get a verification page at <code>/v/&lt;id&gt;</code>.
+              The original file stays immutable.
             </p>
           </article>
+
           <article className="card">
             <div className="icon" aria-hidden>🔍</div>
             <h3>One-click verification</h3>
             <p>
-              The QR-stamped copy points to the public page so anyone can validate integrity and issuer authenticity.
+              The QR-stamped copy points to the public page so anyone can validate
+              integrity and issuer authenticity.
             </p>
           </article>
+
           <article className="card">
             <div className="icon" aria-hidden>⏱️</div>
             <h3>Clear issuance history</h3>
             <p>
-              The client portal shows “Issued at” timestamps and keeps the most recent items on top.
+              The client portal shows “Issued at” timestamps and keeps the most recent
+              items on top.
             </p>
           </article>
+
           <article className="card">
             <div className="icon" aria-hidden>🏷️</div>
             <h3>Tenants & credits</h3>
             <p>
-              Multi-tenant, credit-based flow. Start processing when you’re ready—no silent background actions.
+              Multi-tenant, credit-based flow. Start processing when you’re ready—no
+              silent background actions.
             </p>
           </article>
         </div>
@@ -123,14 +152,18 @@ export default function Home() {
         </ul>
       </section>
 
-      {/* FOOTER */}
+      {/* FOOTER con DID link */}
       <footer className="footer">
-        <p>© {year} GecorpID</p>
+        <p>
+          © {year} GecorpID —{" "}
+          <a href="/.well-known/did.json">View issuer DID document</a>
+        </p>
       </footer>
 
       {/* STYLES */}
       <style jsx>{`
         :root {
+          /* High-contrast palette */
           --bg: #f6f7fb;
           --ink: #0b0d12;
           --muted: #4b5563;
@@ -140,6 +173,7 @@ export default function Home() {
 
           --brand: #1e40ff;
           --brand-600: #1a36d8;
+          --accent: #0ea5e9;
 
           --radius: 16px;
           --shadow: 0 10px 30px rgba(16, 24, 40, 0.08);
@@ -150,88 +184,51 @@ export default function Home() {
         body { margin: 0; background: var(--bg); color: var(--ink); }
 
         .wrap {
-          background:
-            radial-gradient(1400px 700px at 0% -10%, rgba(14, 165, 233, .10), transparent 60%),
-            radial-gradient(1200px 620px at 100% 0%, rgba(30, 64, 255, .10), transparent 60%),
-            var(--bg);
-          padding: 24px 20px 40px;
+          padding: 18px 20px 40px;
           display: grid;
-          gap: 28px;
+          gap: 24px;
+          background:
+            radial-gradient(1400px 700px at 0% -10%, rgba(14,165,233,.10), transparent 60%),
+            radial-gradient(1200px 620px at 100% 0%, rgba(30,64,255,.10), transparent 60%),
+            var(--bg);
         }
 
-        /* NAV */
+        /* HEADER */
         .nav {
           max-width: 1160px;
           margin: 0 auto;
-          padding: 12px 16px;
-          background: var(--panel);
-          border: 1px solid var(--border);
-          border-radius: var(--radius);
-          box-shadow: var(--shadow);
+          background: transparent; /* sin caja, solo marca */
           display: flex;
-          align-items: center;
-          justify-content: space-between;
+          align-items: flex-start;
+          justify-content: flex-start;
+          padding: 0;
         }
         .brand {
-          display: flex;
-          align-items: center;
-          gap: 12px;
+          display: grid;
+          grid-auto-flow: row;
+          align-items: start;
+          gap: 6px;
         }
+        .logoLink { display: inline-flex; align-items: center; }
         .logoImg {
           display: block;
-          width: 32px;
-          height: 32px;
+          width: 40px;
+          height: 40px;
           object-fit: cover;
-          border-radius: 6px; /* quita si preferís sin bordes */
+          border-radius: 6px;
+          box-shadow: 0 4px 16px rgba(0,0,0,.08);
         }
-        .logoText {
+        .logoFallback {
           font-weight: 800;
           letter-spacing: .2px;
+          font-size: 18px;
         }
-        .appName {
-          font-weight: 800;
-          letter-spacing: .2px;
-          padding-left: 10px;
-          border-left: 1px solid #e5e7eb;
+        .legend {
+          font-size: 12px;
+          color: var(--muted);
         }
-
-        .actions {
-          display: flex;
-          gap: 10px;
-          flex-wrap: wrap;
-        }
-        .btn {
-          appearance: none;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          height: 42px;
-          padding: 0 16px;
-          border-radius: 12px;
-          text-decoration: none;
-          font-weight: 700;
-          letter-spacing: .2px;
-          transition: transform .06s ease, background .2s ease, border-color .2s ease, color .2s ease, box-shadow .2s ease;
-          border: 1px solid transparent;
-          user-select: none;
-        }
-        .btn:active { transform: translateY(1px); }
-        .btnPrimary {
-          background: var(--brand);
-          color: #fff;
-          border-color: var(--brand-600);
-          box-shadow: 0 6px 20px rgba(30, 64, 255, 0.25);
-        }
-        .btnPrimary:hover { background: var(--brand-600); }
-        .btnSecondary {
-          background: #fff;
-          color: var(--brand);
-          border-color: rgba(30, 64, 255, .35);
-        }
-        .btnSecondary:hover {
-          background: rgba(30, 64, 255, .06);
-          border-color: var(--brand-600);
-        }
+        .legend a { color: var(--muted); text-decoration: underline; }
+        .legend a:hover { color: #111827; }
 
         /* HERO */
         .hero {
@@ -242,35 +239,63 @@ export default function Home() {
           border: 1px solid var(--border);
           border-radius: var(--radius);
           box-shadow: var(--shadow);
-          padding: 44px 20px 32px;
+          padding: 44px 20px 28px;
         }
         .title {
-          font-size: clamp(28px, 4.8vw, 56px);
+          font-size: clamp(34px, 6vw, 64px);
           line-height: 1.06;
           letter-spacing: -0.02em;
-          margin: 0 0 12px;
+          margin: 0 0 6px;
         }
         .subtitle {
-          margin: 0 auto;
-          max-width: 820px;
+          margin: 0 auto 18px;
+          max-width: 700px;
           color: var(--muted);
-          font-size: clamp(15px, 2vw, 18px);
+          font-size: clamp(14px, 1.8vw, 18px);
+        }
+        .cta {
+          display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;
+        }
+        .btn {
+          appearance: none;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          height: 48px;
+          padding: 0 22px;
+          border-radius: 14px;
+          text-decoration: none;
+          font-weight: 800;
+          letter-spacing: .2px;
+          transition: transform .06s ease, background .2s ease, border-color .2s ease, color .2s ease, box-shadow .2s ease;
+          border: 1px solid transparent;
+          user-select: none;
+        }
+        .btn:active { transform: translateY(1px); }
+        .btnPrimary {
+          background: linear-gradient(180deg, #3b82f6, var(--brand));
+          color: #fff;
+          border-color: var(--brand-600);
+          box-shadow: 0 8px 28px rgba(30, 64, 255, 0.28);
+        }
+        .btnPrimary:hover { filter: brightness(1.04); }
+        .btnSecondary {
+          background: #fff;
+          color: var(--brand);
+          border-color: rgba(30, 64, 255, .35);
+          box-shadow: 0 8px 24px rgba(2, 6, 23, 0.06);
+        }
+        .btnSecondary:hover {
+          background: rgba(30, 64, 255, .06);
+          border-color: var(--brand-600);
         }
 
         /* FEATURES */
-        .features {
-          max-width: 1160px;
-          margin: 0 auto;
-        }
-        .sectionTitle {
-          font-size: 22px;
-          margin: 0 6px 14px;
-          letter-spacing: .2px;
-        }
+        .features { max-width: 1160px; margin: 0 auto; }
+        .sectionTitle { font-size: 22px; margin: 0 6px 14px; letter-spacing: .2px; }
         .grid {
-          display: grid;
-          grid-template-columns: repeat(12, 1fr);
-          gap: 14px;
+          display: grid; grid-template-columns: repeat(12, 1fr); gap: 14px;
         }
         .card {
           grid-column: span 12;
@@ -283,42 +308,29 @@ export default function Home() {
         }
         .card:hover { transform: translateY(-2px); border-color: #d6dbe6; }
         .icon {
-          font-size: 20px;
-          width: 32px; height: 32px;
+          font-size: 20px; width: 32px; height: 32px;
           display: inline-flex; align-items: center; justify-content: center;
-          border-radius: 10px;
-          background: #eef2ff; color: var(--brand);
+          border-radius: 10px; background: #eef2ff; color: var(--brand);
           margin-bottom: 6px;
         }
         .card h3 { margin: 4px 0 6px; font-size: 18px; }
         .card p { margin: 0; color: var(--muted); font-size: 15px; }
-
         @media (min-width: 740px) { .card { grid-column: span 6; } }
         @media (min-width: 1024px) { .card { grid-column: span 3; } }
 
         /* HOW IT WORKS */
         .how {
-          max-width: 1160px;
-          margin: 0 auto;
-          background: #0b1220;
-          border: 1px solid #0f172a;
-          border-radius: var(--radius);
-          box-shadow: var(--shadow);
-          padding: 20px 16px 10px;
-          color: #fff;
+          max-width: 1160px; margin: 0 auto;
+          background: #0b1220; border: 1px solid #0f172a;
+          border-radius: var(--radius); box-shadow: var(--shadow);
+          padding: 20px 16px 10px; color: #fff;
         }
         .contrast { color: #fff; }
-        .steps {
-          list-style: none; margin: 10px 0 14px; padding: 0;
-          display: grid; gap: 10px;
-        }
+        .steps { list-style: none; margin: 10px 0 14px; padding: 0; display: grid; gap: 10px; }
         .step {
-          display: grid; grid-template-columns: 34px 1fr; gap: 12px;
-          align-items: start;
-          background: rgba(255, 255, 255, 0.06);
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          border-radius: 12px;
-          padding: 12px;
+          display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: start;
+          background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+          border-radius: 12px; padding: 12px;
         }
         .badge {
           display: inline-flex; align-items: center; justify-content: center;
@@ -331,26 +343,19 @@ export default function Home() {
         /* WHY VCs */
         .why {
           max-width: 1160px; margin: 0 auto;
-          background: var(--panel);
-          border: 1px solid var(--border);
-          border-radius: var(--radius);
-          box-shadow: var(--shadow);
+          background: var(--panel); border: 1px solid var(--border);
+          border-radius: var(--radius); box-shadow: var(--shadow);
           padding: 18px 16px;
         }
-        .bullets {
-          list-style: none; margin: 8px 0 0; padding: 0;
-          display: grid; gap: 8px;
-        }
+        .bullets { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
         .bullets li {
           display: grid; grid-template-columns: 24px 1fr; align-items: start; gap: 8px;
-          color: var(--muted);
-          font-size: 15px;
+          color: var(--muted); font-size: 15px;
         }
         .check {
           display: inline-flex; align-items: center; justify-content: center;
           width: 24px; height: 24px; border-radius: 8px;
-          background: #ecfdf5; color: #10b981; font-weight: 800;
-          border: 1px solid #d1fae5;
+          background: #ecfdf5; color: #10b981; font-weight: 800; border: 1px solid #d1fae5;
         }
 
         /* FOOTER */
@@ -358,6 +363,8 @@ export default function Home() {
           max-width: 1160px; margin: 0 auto; text-align: center;
           color: var(--muted); font-size: 13px; padding: 6px 16px 12px;
         }
+        .footer a { color: #1e40ff; text-decoration: underline; }
+        .footer a:hover { color: #162fb3; }
       `}</style>
     </main>
   );
