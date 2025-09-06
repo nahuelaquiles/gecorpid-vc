@@ -2,19 +2,35 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 
 export default function Home() {
   const year = new Date().getFullYear();
+  const [logoOk, setLogoOk] = useState(true);
 
   return (
     <main className="wrap">
       {/* NAV */}
-      <header className="nav">
-        <div className="brand" aria-label="GECORPID VC">
-          <span className="logoDot" aria-hidden />
-          <span className="logoText">GECORPID • VC</span>
+      <header className="nav" role="banner">
+        <div className="brand" aria-label="GecorpID">
+          {logoOk ? (
+            <img
+              src="/Gecorp-Logo.iso.jpg"
+              alt="GECORP"
+              className="logoImg"
+              width={32}
+              height={32}
+              loading="eager"
+              decoding="async"
+              onError={() => setLogoOk(false)}
+            />
+          ) : (
+            <span className="logoText">GECORP</span>
+          )}
+          <span className="appName">GecorpID</span>
         </div>
-        <nav className="navActions" aria-label="Primary">
+
+        <nav className="actions" aria-label="Primary">
           <Link href="/login" className="btn btnPrimary" aria-label="Go to Client Login">
             Client Login
           </Link>
@@ -26,21 +42,11 @@ export default function Home() {
 
       {/* HERO */}
       <section className="hero" aria-labelledby="hero-title">
-        <h1 id="hero-title" className="title">
-          Verifiable PDFs, made simple
-        </h1>
+        <h1 id="hero-title" className="title">Verifiable PDFs, made simple</h1>
         <p className="subtitle">
           Issue trusted documents with cryptographic signatures and a public verification page.
           Preserve the original PDF and provide a QR-stamped copy for frictionless checks.
         </p>
-        <div className="cta">
-          <Link href="/login" className="btn btnPrimary btnLg" aria-label="Start issuing credentials">
-            Get started
-          </Link>
-          <Link href="/v/demo" className="btn btnTertiary btnLg" aria-label="See a verification example">
-            See verification example
-          </Link>
-        </div>
       </section>
 
       {/* FEATURES */}
@@ -65,7 +71,7 @@ export default function Home() {
             <div className="icon" aria-hidden>⏱️</div>
             <h3>Clear issuance history</h3>
             <p>
-              A client portal shows “Issued at” timestamps and keeps the most recent items on top.
+              The client portal shows “Issued at” timestamps and keeps the most recent items on top.
             </p>
           </article>
           <article className="card">
@@ -80,7 +86,7 @@ export default function Home() {
 
       {/* HOW IT WORKS */}
       <section className="how" aria-labelledby="how-title">
-        <h2 id="how-title" className="sectionTitle">How it works</h2>
+        <h2 id="how-title" className="sectionTitle contrast">How it works</h2>
         <ol className="steps">
           <li className="step">
             <span className="badge">1</span>
@@ -119,39 +125,35 @@ export default function Home() {
 
       {/* FOOTER */}
       <footer className="footer">
-        <p>
-          © {year} GECORPID • VC — <a href="/.well-known/did.json">View issuer DID document</a>
-        </p>
+        <p>© {year} GecorpID</p>
       </footer>
 
       {/* STYLES */}
       <style jsx>{`
         :root {
-          /* Light, high-contrast palette */
-          --bg: #f7fafc;
-          --ink: #0a0a0a;
-          --muted: #4a5568;
+          --bg: #f6f7fb;
+          --ink: #0b0d12;
+          --muted: #4b5563;
+
           --panel: #ffffff;
           --border: #e5e7eb;
-          --brand: #1e62ff; /* primary blue */
-          --brand-600: #1a56e6;
-          --brand-700: #164acc;
-          --accent: #10b981; /* green accent */
-          --accent-700: #059669;
-          --shadow: 0 8px 30px rgba(0, 0, 0, 0.07);
+
+          --brand: #1e40ff;
+          --brand-600: #1a36d8;
+
           --radius: 16px;
-          --radius-sm: 12px;
+          --shadow: 0 10px 30px rgba(16, 24, 40, 0.08);
         }
 
         * { box-sizing: border-box; }
         html, body, .wrap { min-height: 100%; }
+        body { margin: 0; background: var(--bg); color: var(--ink); }
 
         .wrap {
           background:
-            radial-gradient(1200px 600px at 0% -10%, rgba(30, 98, 255, 0.10), transparent 55%),
-            radial-gradient(1000px 520px at 100% 0%, rgba(16, 185, 129, 0.10), transparent 60%),
+            radial-gradient(1400px 700px at 0% -10%, rgba(14, 165, 233, .10), transparent 60%),
+            radial-gradient(1200px 620px at 100% 0%, rgba(30, 64, 255, .10), transparent 60%),
             var(--bg);
-          color: var(--ink);
           padding: 24px 20px 40px;
           display: grid;
           gap: 28px;
@@ -159,90 +161,92 @@ export default function Home() {
 
         /* NAV */
         .nav {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          max-width: 1140px;
+          max-width: 1160px;
           margin: 0 auto;
-          padding: 14px 16px;
+          padding: 12px 16px;
           background: var(--panel);
           border: 1px solid var(--border);
           border-radius: var(--radius);
           box-shadow: var(--shadow);
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+        .brand {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+        .logoImg {
+          display: block;
+          width: 32px;
+          height: 32px;
+          object-fit: cover;
+          border-radius: 6px; /* quita si preferís sin bordes */
+        }
+        .logoText {
+          font-weight: 800;
+          letter-spacing: .2px;
+        }
+        .appName {
+          font-weight: 800;
+          letter-spacing: .2px;
+          padding-left: 10px;
+          border-left: 1px solid #e5e7eb;
         }
 
-        .brand { display: flex; align-items: center; gap: 10px; }
-        .logoDot {
-          width: 12px; height: 12px; border-radius: 50%;
-          background: linear-gradient(180deg, var(--brand), var(--brand-600));
-          box-shadow: 0 0 0 4px rgba(30, 98, 255, 0.15);
+        .actions {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
         }
-        .logoText { font-weight: 800; letter-spacing: .2px; }
-
-        .navActions { display: flex; gap: 10px; flex-wrap: wrap; }
-
         .btn {
           appearance: none;
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          gap: 8px;
           height: 42px;
           padding: 0 16px;
           border-radius: 12px;
           text-decoration: none;
           font-weight: 700;
           letter-spacing: .2px;
-          transition: transform .06s ease, box-shadow .2s ease, background .2s ease, border-color .2s ease, color .2s ease;
+          transition: transform .06s ease, background .2s ease, border-color .2s ease, color .2s ease, box-shadow .2s ease;
           border: 1px solid transparent;
           user-select: none;
         }
         .btn:active { transform: translateY(1px); }
-
         .btnPrimary {
           background: var(--brand);
           color: #fff;
           border-color: var(--brand-600);
-          box-shadow: 0 6px 24px rgba(30, 98, 255, 0.25);
+          box-shadow: 0 6px 20px rgba(30, 64, 255, 0.25);
         }
         .btnPrimary:hover { background: var(--brand-600); }
-
         .btnSecondary {
           background: #fff;
           color: var(--brand);
-          border-color: rgba(30, 98, 255, 0.35);
+          border-color: rgba(30, 64, 255, .35);
         }
         .btnSecondary:hover {
-          background: rgba(30, 98, 255, 0.06);
+          background: rgba(30, 64, 255, .06);
           border-color: var(--brand-600);
         }
 
-        .btnTertiary {
-          background: #fff;
-          color: var(--accent);
-          border-color: rgba(16, 185, 129, 0.35);
-        }
-        .btnTertiary:hover {
-          background: rgba(16, 185, 129, 0.06);
-          border-color: var(--accent-700);
-        }
-
-        .btnLg { height: 48px; padding: 0 20px; border-radius: 14px; }
-
         /* HERO */
         .hero {
-          max-width: 1140px;
+          max-width: 1160px;
           margin: 0 auto;
           text-align: center;
           background: var(--panel);
           border: 1px solid var(--border);
           border-radius: var(--radius);
           box-shadow: var(--shadow);
-          padding: 40px 20px 28px;
+          padding: 44px 20px 32px;
         }
         .title {
           font-size: clamp(28px, 4.8vw, 56px);
-          line-height: 1.08;
+          line-height: 1.06;
           letter-spacing: -0.02em;
           margin: 0 0 12px;
         }
@@ -252,17 +256,15 @@ export default function Home() {
           color: var(--muted);
           font-size: clamp(15px, 2vw, 18px);
         }
-        .cta { display: flex; gap: 12px; justify-content: center; margin-top: 22px; flex-wrap: wrap; }
 
         /* FEATURES */
         .features {
-          max-width: 1140px;
+          max-width: 1160px;
           margin: 0 auto;
-          padding: 4px;
         }
         .sectionTitle {
           font-size: 22px;
-          margin: 0 6px 12px;
+          margin: 0 6px 14px;
           letter-spacing: .2px;
         }
         .grid {
@@ -279,29 +281,33 @@ export default function Home() {
           box-shadow: var(--shadow);
           transition: transform .12s ease, border-color .2s ease;
         }
-        .card:hover { transform: translateY(-2px); border-color: #cdd6e0; }
+        .card:hover { transform: translateY(-2px); border-color: #d6dbe6; }
         .icon {
-          font-size: 20px; width: 32px; height: 32px;
+          font-size: 20px;
+          width: 32px; height: 32px;
           display: inline-flex; align-items: center; justify-content: center;
-          border-radius: 10px; background: #f3f6ff; color: var(--brand);
+          border-radius: 10px;
+          background: #eef2ff; color: var(--brand);
           margin-bottom: 6px;
         }
         .card h3 { margin: 4px 0 6px; font-size: 18px; }
         .card p { margin: 0; color: var(--muted); font-size: 15px; }
+
         @media (min-width: 740px) { .card { grid-column: span 6; } }
         @media (min-width: 1024px) { .card { grid-column: span 3; } }
 
         /* HOW IT WORKS */
         .how {
-          max-width: 1140px; margin: 0 auto;
-          background: #0b1220; /* dark block for contrast */
-          color: #fff;
+          max-width: 1160px;
+          margin: 0 auto;
+          background: #0b1220;
+          border: 1px solid #0f172a;
           border-radius: var(--radius);
-          border: 1px solid #111827;
           box-shadow: var(--shadow);
-          padding: 18px 16px 8px;
+          padding: 20px 16px 10px;
+          color: #fff;
         }
-        .how .sectionTitle { color: #fff; }
+        .contrast { color: #fff; }
         .steps {
           list-style: none; margin: 10px 0 14px; padding: 0;
           display: grid; gap: 10px;
@@ -317,14 +323,14 @@ export default function Home() {
         .badge {
           display: inline-flex; align-items: center; justify-content: center;
           width: 34px; height: 34px; font-weight: 800; border-radius: 10px;
-          background: #1e62ff; color: #fff; border: 1px solid rgba(255,255,255,.2);
+          background: #1e40ff; color: #fff; border: 1px solid rgba(255,255,255,.2);
         }
         .step h4 { margin: 2px 0 6px; font-size: 16px; color: #fff; }
         .step p { margin: 0; color: #e5e7eb; font-size: 14.5px; }
 
         /* WHY VCs */
         .why {
-          max-width: 1140px; margin: 0 auto;
+          max-width: 1160px; margin: 0 auto;
           background: var(--panel);
           border: 1px solid var(--border);
           border-radius: var(--radius);
@@ -343,17 +349,15 @@ export default function Home() {
         .check {
           display: inline-flex; align-items: center; justify-content: center;
           width: 24px; height: 24px; border-radius: 8px;
-          background: #ecfdf5; color: var(--accent); font-weight: 800;
+          background: #ecfdf5; color: #10b981; font-weight: 800;
           border: 1px solid #d1fae5;
         }
 
         /* FOOTER */
         .footer {
-          max-width: 1140px; margin: 0 auto; text-align: center;
-          color: var(--muted); font-size: 13px; padding: 8px 16px 12px;
+          max-width: 1160px; margin: 0 auto; text-align: center;
+          color: var(--muted); font-size: 13px; padding: 6px 16px 12px;
         }
-        .footer a { color: var(--brand); text-decoration: underline; }
-        .footer a:hover { color: var(--brand-700); }
       `}</style>
     </main>
   );
