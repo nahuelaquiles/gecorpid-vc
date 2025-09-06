@@ -7,178 +7,154 @@ export default function Home() {
   const year = new Date().getFullYear();
 
   return (
-    <main className="home">
+    <main className="wrap">
       {/* NAV */}
       <header className="nav">
-        <div className="brand">
-          <span className="dot" aria-hidden />
-          <span className="logo">GECORPID • VC</span>
+        <div className="brand" aria-label="GECORPID VC">
+          <span className="logoDot" aria-hidden />
+          <span className="logoText">GECORPID • VC</span>
         </div>
-        <nav className="links">
-          <Link href="/login" className="link" aria-label="Go to Client Login">
+        <nav className="navActions" aria-label="Primary">
+          <Link href="/login" className="btn btnPrimary" aria-label="Go to Client Login">
             Client Login
           </Link>
-          <Link href="/admin" className="link alt" aria-label="Go to Admin">
+          <Link href="/admin" className="btn btnSecondary" aria-label="Go to Admin">
             Admin
           </Link>
         </nav>
       </header>
 
       {/* HERO */}
-      <section className="hero">
-        <span className="pill">DID:web • QR-stamped copy • Audit trail</span>
-        <h1 className="title">Verifiable PDFs, made simple</h1>
+      <section className="hero" aria-labelledby="hero-title">
+        <h1 id="hero-title" className="title">
+          Verifiable PDFs, made simple
+        </h1>
         <p className="subtitle">
-          Upload a PDF → we embed a QR pointing to a public verification page{" "}
-          <code>/v/&lt;id&gt;</code>. Original and processed files are stored,
-          and credits are tracked per tenant.
+          Issue trusted documents with cryptographic signatures and a public verification page.
+          Preserve the original PDF and provide a QR-stamped copy for frictionless checks.
         </p>
-
         <div className="cta">
-          <Link href="/login" className="btn primary" aria-label="Go to Client Login">
-            Client Login
+          <Link href="/login" className="btn btnPrimary btnLg" aria-label="Start issuing credentials">
+            Get started
           </Link>
-          <Link href="/admin" className="btn ghost" aria-label="Go to Admin">
-            Admin
+          <Link href="/v/demo" className="btn btnTertiary btnLg" aria-label="See a verification example">
+            See verification example
           </Link>
         </div>
-
-        <p className="tiny">
-          Legacy demo routes remain available: <code>/issue</code> and{" "}
-          <code>/verify</code>.
-        </p>
       </section>
 
-      {/* FEATURES GRID */}
-      <section className="grid">
-        <article className="card">
-          <div className="icon">🔒</div>
-          <h3>Upload once, verify anywhere</h3>
-          <p>
-            Each upload gets a stable public verifier at <code>/v/&lt;id&gt;</code>{" "}
-            showing original and QR-stamped PDFs.
-          </p>
-        </article>
-
-        <article className="card">
-          <div className="icon">🏷️</div>
-          <h3>Tenants & credits built-in</h3>
-          <p>
-            Multi-tenant flow with credit tracking. Simple “Start” processing and a clear
-            issuance history with timestamps.
-          </p>
-        </article>
-
-        <article className="card">
-          <div className="icon">🧾</div>
-          <h3>Privacy-focused & auditable</h3>
-          <p>
-            Original file stays immutable. The QR is embedded only in a copy to
-            facilitate verification—no silent overwrites.
-          </p>
-        </article>
-
-        <article className="card">
-          <div className="icon">🧩</div>
-          <h3>Open APIs</h3>
-          <p>
-            Minimal endpoints for issuing and verifying. Existing integrations with{" "}
-            <code>/api/issue</code> and <code>/api/verify</code> are preserved.
-          </p>
-        </article>
+      {/* FEATURES */}
+      <section className="features" aria-labelledby="features-title">
+        <h2 id="features-title" className="sectionTitle">What you can do</h2>
+        <div className="grid">
+          <article className="card">
+            <div className="icon" aria-hidden>🧾</div>
+            <h3>Issue verifiable PDFs</h3>
+            <p>
+              Upload a PDF and get a verification page at <code>/v/&lt;id&gt;</code>. The original file stays immutable.
+            </p>
+          </article>
+          <article className="card">
+            <div className="icon" aria-hidden>🔍</div>
+            <h3>One-click verification</h3>
+            <p>
+              The QR-stamped copy points to the public page so anyone can validate integrity and issuer authenticity.
+            </p>
+          </article>
+          <article className="card">
+            <div className="icon" aria-hidden>⏱️</div>
+            <h3>Clear issuance history</h3>
+            <p>
+              A client portal shows “Issued at” timestamps and keeps the most recent items on top.
+            </p>
+          </article>
+          <article className="card">
+            <div className="icon" aria-hidden>🏷️</div>
+            <h3>Tenants & credits</h3>
+            <p>
+              Multi-tenant, credit-based flow. Start processing when you’re ready—no silent background actions.
+            </p>
+          </article>
+        </div>
       </section>
 
       {/* HOW IT WORKS */}
-      <section className="section">
-        <h2 className="sectionTitle">How it works</h2>
-        <div className="steps">
-          <div className="step">
-            <span className="num">1</span>
+      <section className="how" aria-labelledby="how-title">
+        <h2 id="how-title" className="sectionTitle">How it works</h2>
+        <ol className="steps">
+          <li className="step">
+            <span className="badge">1</span>
             <div>
               <h4>Upload</h4>
-              <p>
-                Send your PDF. We store the original and generate a QR-stamped copy for
-                easy verification.
-              </p>
+              <p>Send your PDF. The system stores the original and creates a QR-stamped copy.</p>
             </div>
-          </div>
-          <div className="step">
-            <span className="num">2</span>
+          </li>
+          <li className="step">
+            <span className="badge">2</span>
             <div>
               <h4>Issue</h4>
-              <p>
-                The issuer signs the credential. A public page at{" "}
-                <code>/v/&lt;id&gt;</code> is created with links to both files.
-              </p>
+              <p>The issuer signs the credential; a public page at <code>/v/&lt;id&gt;</code> is available immediately.</p>
             </div>
-          </div>
-          <div className="step">
-            <span className="num">3</span>
+          </li>
+          <li className="step">
+            <span className="badge">3</span>
             <div>
               <h4>Verify</h4>
-              <p>
-                Anyone can check integrity and issuer authenticity—no need to trust a
-                private database.
-              </p>
+              <p>Anyone can confirm integrity and issuer authenticity—no need to trust a private database.</p>
             </div>
-          </div>
-        </div>
+          </li>
+        </ol>
       </section>
 
       {/* WHY VCs */}
-      <section className="section muted">
-        <h2 className="sectionTitle">Why Verifiable Credentials?</h2>
+      <section className="why" aria-labelledby="why-title">
+        <h2 id="why-title" className="sectionTitle">Why Verifiable Credentials?</h2>
         <ul className="bullets">
-          <li>Cryptographic signatures prove origin and integrity.</li>
-          <li>Self-verifiable: no central database dependency.</li>
-          <li>Tamper-evident: any change breaks verification.</li>
-          <li>Works even if the original server is offline.</li>
+          <li><span className="check" aria-hidden>✓</span> Cryptographic signatures prove origin and integrity.</li>
+          <li><span className="check" aria-hidden>✓</span> Self-verifiable: no central database dependency.</li>
+          <li><span className="check" aria-hidden>✓</span> Tamper-evident: any change breaks verification.</li>
+          <li><span className="check" aria-hidden>✓</span> Works even if the original server is offline.</li>
         </ul>
       </section>
 
       {/* FOOTER */}
       <footer className="footer">
         <p>
-          © {year} GECORPID • VC — DID:web available at <code>/.well-known/did.json</code>
+          © {year} GECORPID • VC — <a href="/.well-known/did.json">View issuer DID document</a>
         </p>
       </footer>
 
+      {/* STYLES */}
       <style jsx>{`
         :root {
-          /* Palette */
-          --bg: #0b0e14;
-          --bg-soft: rgba(255, 255, 255, 0.04);
-          --panel: #0f1420;
-          --text: #eef3ff;
-          --muted: #a6b1c2;
-          --brand: #6ea8ff;
-          --brand-strong: #4f8cff;
-          --accent: #68fbd2;
-
-          /* Effects */
+          /* Light, high-contrast palette */
+          --bg: #f7fafc;
+          --ink: #0a0a0a;
+          --muted: #4a5568;
+          --panel: #ffffff;
+          --border: #e5e7eb;
+          --brand: #1e62ff; /* primary blue */
+          --brand-600: #1a56e6;
+          --brand-700: #164acc;
+          --accent: #10b981; /* green accent */
+          --accent-700: #059669;
+          --shadow: 0 8px 30px rgba(0, 0, 0, 0.07);
           --radius: 16px;
           --radius-sm: 12px;
-          --shadow: 0 8px 30px rgba(0, 0, 0, 0.35),
-            inset 0 0 0 1px rgba(255, 255, 255, 0.04);
-          --shadow-soft: 0 6px 24px rgba(0, 0, 0, 0.25);
         }
 
-        * {
-          box-sizing: border-box;
-        }
+        * { box-sizing: border-box; }
+        html, body, .wrap { min-height: 100%; }
 
-        .home {
-          min-height: 100svh;
-          padding: 28px 24px 24px;
-          display: grid;
-          grid-template-rows: auto auto auto 1fr auto;
-          gap: 28px;
-          color: var(--text);
+        .wrap {
           background:
-            radial-gradient(1100px 650px at 15% -15%, rgba(79, 140, 255, 0.28), transparent 60%),
-            radial-gradient(900px 520px at 95% 0%, rgba(104, 251, 210, 0.16), transparent 65%),
-            radial-gradient(1200px 900px at 50% 110%, rgba(79, 140, 255, 0.10), transparent 60%),
+            radial-gradient(1200px 600px at 0% -10%, rgba(30, 98, 255, 0.10), transparent 55%),
+            radial-gradient(1000px 520px at 100% 0%, rgba(16, 185, 129, 0.10), transparent 60%),
             var(--bg);
+          color: var(--ink);
+          padding: 24px 20px 40px;
+          display: grid;
+          gap: 28px;
         }
 
         /* NAV */
@@ -186,294 +162,198 @@ export default function Home() {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          max-width: 1160px;
+          max-width: 1140px;
           margin: 0 auto;
-          padding: 12px 16px;
-          background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.03));
-          border: 1px solid rgba(255, 255, 255, 0.08);
+          padding: 14px 16px;
+          background: var(--panel);
+          border: 1px solid var(--border);
           border-radius: var(--radius);
-          backdrop-filter: blur(8px);
           box-shadow: var(--shadow);
         }
-        .brand {
-          display: flex;
+
+        .brand { display: flex; align-items: center; gap: 10px; }
+        .logoDot {
+          width: 12px; height: 12px; border-radius: 50%;
+          background: linear-gradient(180deg, var(--brand), var(--brand-600));
+          box-shadow: 0 0 0 4px rgba(30, 98, 255, 0.15);
+        }
+        .logoText { font-weight: 800; letter-spacing: .2px; }
+
+        .navActions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+        .btn {
+          appearance: none;
+          display: inline-flex;
           align-items: center;
-          gap: 10px;
-          font-weight: 800;
-          letter-spacing: 0.3px;
-        }
-        .dot {
-          width: 12px;
-          height: 12px;
-          border-radius: 50%;
-          background: linear-gradient(180deg, var(--brand), var(--brand-strong));
-          box-shadow: 0 0 18px var(--brand-strong);
-        }
-        .logo {
-          font-size: 15px;
-          color: var(--text);
-          opacity: 0.95;
-        }
-        .links {
-          display: flex;
-          gap: 10px;
-        }
-        .link {
+          justify-content: center;
+          gap: 8px;
+          height: 42px;
+          padding: 0 16px;
+          border-radius: 12px;
           text-decoration: none;
-          color: var(--text);
-          padding: 8px 12px;
-          border-radius: 10px;
+          font-weight: 700;
+          letter-spacing: .2px;
+          transition: transform .06s ease, box-shadow .2s ease, background .2s ease, border-color .2s ease, color .2s ease;
           border: 1px solid transparent;
-          transition: border-color 0.2s ease, background 0.2s ease, transform 0.06s ease;
+          user-select: none;
         }
-        .link:hover {
-          border-color: rgba(255, 255, 255, 0.14);
-          background: rgba(255, 255, 255, 0.04);
-          transform: translateY(-1px);
+        .btn:active { transform: translateY(1px); }
+
+        .btnPrimary {
+          background: var(--brand);
+          color: #fff;
+          border-color: var(--brand-600);
+          box-shadow: 0 6px 24px rgba(30, 98, 255, 0.25);
         }
-        .link.alt {
+        .btnPrimary:hover { background: var(--brand-600); }
+
+        .btnSecondary {
+          background: #fff;
           color: var(--brand);
-          border-color: rgba(110, 168, 255, 0.3);
-          background: rgba(110, 168, 255, 0.08);
+          border-color: rgba(30, 98, 255, 0.35);
         }
-        .link.alt:hover {
-          background: rgba(110, 168, 255, 0.12);
+        .btnSecondary:hover {
+          background: rgba(30, 98, 255, 0.06);
+          border-color: var(--brand-600);
         }
+
+        .btnTertiary {
+          background: #fff;
+          color: var(--accent);
+          border-color: rgba(16, 185, 129, 0.35);
+        }
+        .btnTertiary:hover {
+          background: rgba(16, 185, 129, 0.06);
+          border-color: var(--accent-700);
+        }
+
+        .btnLg { height: 48px; padding: 0 20px; border-radius: 14px; }
 
         /* HERO */
         .hero {
-          max-width: 980px;
+          max-width: 1140px;
           margin: 0 auto;
           text-align: center;
-          padding: 24px 16px 8px;
-        }
-        .pill {
-          display: inline-flex;
-          gap: 8px;
-          align-items: center;
-          padding: 6px 12px;
-          font-size: 12px;
-          color: var(--brand);
-          border: 1px solid rgba(110, 168, 255, 0.35);
-          border-radius: 999px;
-          background: rgba(110, 168, 255, 0.08);
-          box-shadow: var(--shadow-soft);
+          background: var(--panel);
+          border: 1px solid var(--border);
+          border-radius: var(--radius);
+          box-shadow: var(--shadow);
+          padding: 40px 20px 28px;
         }
         .title {
-          font-size: clamp(28px, 4.5vw, 48px);
-          line-height: 1.12;
+          font-size: clamp(28px, 4.8vw, 56px);
+          line-height: 1.08;
           letter-spacing: -0.02em;
-          margin: 12px 0 8px;
-          text-shadow: 0 6px 36px rgba(79, 140, 255, 0.28);
+          margin: 0 0 12px;
         }
         .subtitle {
           margin: 0 auto;
-          max-width: 740px;
+          max-width: 820px;
           color: var(--muted);
-          font-size: clamp(14px, 1.9vw, 17px);
+          font-size: clamp(15px, 2vw, 18px);
         }
-        code {
-          padding: 2px 6px;
-          border-radius: 8px;
-          background: rgba(255, 255, 255, 0.06);
-          border: 1px dashed rgba(255, 255, 255, 0.14);
-          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-            "Liberation Mono", "Courier New", monospace;
-        }
+        .cta { display: flex; gap: 12px; justify-content: center; margin-top: 22px; flex-wrap: wrap; }
 
-        .cta {
-          display: flex;
-          justify-content: center;
-          gap: 12px;
-          margin: 26px 0 8px;
-          flex-wrap: wrap;
+        /* FEATURES */
+        .features {
+          max-width: 1140px;
+          margin: 0 auto;
+          padding: 4px;
         }
-        .btn {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          min-width: 164px;
-          height: 46px;
-          padding: 0 18px;
-          border-radius: 14px;
-          text-decoration: none;
-          font-weight: 700;
-          border: 1px solid transparent;
-          transition: transform 0.06s ease, box-shadow 0.2s ease,
-            background 0.2s ease, border-color 0.2s ease;
-          box-shadow: var(--shadow);
+        .sectionTitle {
+          font-size: 22px;
+          margin: 0 6px 12px;
+          letter-spacing: .2px;
         }
-        .btn:active {
-          transform: translateY(1px);
-        }
-        .btn.primary {
-          color: #0b0e14;
-          background: linear-gradient(180deg, var(--accent), #4deac3);
-          border-color: rgba(104, 251, 210, 0.5);
-        }
-        .btn.primary:hover {
-          filter: brightness(1.05);
-        }
-        .btn.ghost {
-          color: var(--brand);
-          background: rgba(110, 168, 255, 0.08);
-          border-color: rgba(110, 168, 255, 0.35);
-        }
-        .btn.ghost:hover {
-          background: rgba(110, 168, 255, 0.12);
-        }
-        .tiny {
-          margin-top: 10px;
-          color: var(--muted);
-          font-size: 13px;
-        }
-
-        /* GRID */
         .grid {
-          max-width: 1160px;
-          margin: 2px auto 0;
-          padding: 8px 6px;
           display: grid;
           grid-template-columns: repeat(12, 1fr);
           gap: 14px;
         }
         .card {
           grid-column: span 12;
-          background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
-          border: 1px solid rgba(255, 255, 255, 0.08);
+          background: var(--panel);
+          border: 1px solid var(--border);
           border-radius: var(--radius);
-          padding: 18px 16px 16px;
+          padding: 18px 16px;
           box-shadow: var(--shadow);
-          transition: transform 0.16s ease, border-color 0.2s ease, background 0.2s ease;
+          transition: transform .12s ease, border-color .2s ease;
         }
-        .card:hover {
-          transform: translateY(-2px);
-          border-color: rgba(104, 251, 210, 0.28);
-          background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.035));
-        }
+        .card:hover { transform: translateY(-2px); border-color: #cdd6e0; }
         .icon {
-          font-size: 20px;
-          opacity: 0.95;
+          font-size: 20px; width: 32px; height: 32px;
+          display: inline-flex; align-items: center; justify-content: center;
+          border-radius: 10px; background: #f3f6ff; color: var(--brand);
           margin-bottom: 6px;
-          display: inline-flex;
-          width: 28px;
-          height: 28px;
-          align-items: center;
-          justify-content: center;
-          border-radius: 8px;
-          background: rgba(110, 168, 255, 0.12);
-          border: 1px solid rgba(110, 168, 255, 0.22);
         }
-        .card h3 {
-          margin: 6px 0 6px;
-          font-size: 18px;
-          letter-spacing: 0.1px;
-        }
-        .card p {
-          margin: 0;
-          color: var(--muted);
-          font-size: 14.5px;
-        }
+        .card h3 { margin: 4px 0 6px; font-size: 18px; }
+        .card p { margin: 0; color: var(--muted); font-size: 15px; }
+        @media (min-width: 740px) { .card { grid-column: span 6; } }
+        @media (min-width: 1024px) { .card { grid-column: span 3; } }
 
-        @media (min-width: 720px) {
-          .card {
-            grid-column: span 6;
-          }
-        }
-        @media (min-width: 1024px) {
-          .card {
-            grid-column: span 3;
-          }
-        }
-
-        /* SECTIONS */
-        .section {
-          max-width: 1160px;
-          margin: 8px auto 0;
-          padding: 22px 12px 8px;
-        }
-        .section.muted {
-          background: rgba(255, 255, 255, 0.035);
-          border-top: 1px solid rgba(255, 255, 255, 0.06);
-          border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        /* HOW IT WORKS */
+        .how {
+          max-width: 1140px; margin: 0 auto;
+          background: #0b1220; /* dark block for contrast */
+          color: #fff;
           border-radius: var(--radius);
+          border: 1px solid #111827;
+          box-shadow: var(--shadow);
+          padding: 18px 16px 8px;
         }
-        .sectionTitle {
-          margin: 0 6px 14px;
-          font-size: 20px;
-          letter-spacing: 0.2px;
-          color: #e9eeff;
-          text-shadow: 0 4px 24px rgba(79, 140, 255, 0.25);
-        }
-
+        .how .sectionTitle { color: #fff; }
         .steps {
-          display: grid;
-          gap: 12px;
+          list-style: none; margin: 10px 0 14px; padding: 0;
+          display: grid; gap: 10px;
         }
         .step {
-          display: grid;
-          grid-template-columns: 34px 1fr;
+          display: grid; grid-template-columns: 34px 1fr; gap: 12px;
           align-items: start;
-          gap: 12px;
-          padding: 12px 10px;
-          border-radius: var(--radius-sm);
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.08);
+          background: rgba(255, 255, 255, 0.06);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 12px;
+          padding: 12px;
         }
-        .num {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          width: 34px;
-          height: 34px;
-          font-weight: 800;
-          border-radius: 10px;
-          color: #0b0e14;
-          background: linear-gradient(180deg, var(--accent), #4deac3);
-          border: 1px solid rgba(104, 251, 210, 0.45);
-          box-shadow: var(--shadow-soft);
+        .badge {
+          display: inline-flex; align-items: center; justify-content: center;
+          width: 34px; height: 34px; font-weight: 800; border-radius: 10px;
+          background: #1e62ff; color: #fff; border: 1px solid rgba(255,255,255,.2);
         }
-        .step h4 {
-          margin: 2px 0 6px;
-          font-size: 16px;
-        }
-        .step p {
-          margin: 0;
-          color: var(--muted);
-          font-size: 14.5px;
-        }
+        .step h4 { margin: 2px 0 6px; font-size: 16px; color: #fff; }
+        .step p { margin: 0; color: #e5e7eb; font-size: 14.5px; }
 
+        /* WHY VCs */
+        .why {
+          max-width: 1140px; margin: 0 auto;
+          background: var(--panel);
+          border: 1px solid var(--border);
+          border-radius: var(--radius);
+          box-shadow: var(--shadow);
+          padding: 18px 16px;
+        }
         .bullets {
-          display: grid;
-          gap: 8px;
-          padding: 0 6px 18px;
-          margin: 0;
-          list-style: none;
+          list-style: none; margin: 8px 0 0; padding: 0;
+          display: grid; gap: 8px;
         }
         .bullets li {
-          position: relative;
-          padding-left: 22px;
+          display: grid; grid-template-columns: 24px 1fr; align-items: start; gap: 8px;
           color: var(--muted);
-          font-size: 14.5px;
+          font-size: 15px;
         }
-        .bullets li::before {
-          content: "•";
-          position: absolute;
-          left: 6px;
-          top: 0;
-          color: var(--accent);
-          text-shadow: 0 0 14px rgba(104, 251, 210, 0.8);
+        .check {
+          display: inline-flex; align-items: center; justify-content: center;
+          width: 24px; height: 24px; border-radius: 8px;
+          background: #ecfdf5; color: var(--accent); font-weight: 800;
+          border: 1px solid #d1fae5;
         }
 
         /* FOOTER */
         .footer {
-          max-width: 1160px;
-          margin: 0 auto;
-          padding: 16px 18px 26px;
-          text-align: center;
-          color: var(--muted);
-          font-size: 13px;
+          max-width: 1140px; margin: 0 auto; text-align: center;
+          color: var(--muted); font-size: 13px; padding: 8px 16px 12px;
         }
+        .footer a { color: var(--brand); text-decoration: underline; }
+        .footer a:hover { color: var(--brand-700); }
       `}</style>
     </main>
   );
