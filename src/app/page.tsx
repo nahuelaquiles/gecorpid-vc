@@ -1,4 +1,3 @@
-// src/app/page.tsx
 "use client";
 
 import Link from "next/link";
@@ -7,25 +6,38 @@ import { useState } from "react";
 /**
  * Landing page for GecorpID.
  *
- * This component implements a marketing‑style landing page with a minimal
- * header (logo and developer credit), a central hero section with a title
- * and two call‑to‑action buttons, followed by feature highlights, an
- * explanation of how the system works, and a brief rationale for using
- * verifiable credentials. A footer provides copyright information and a
- * link to the issuer's DID document. All copy and labels are in English
- * to satisfy the project requirements.
+ * Marketing-style landing with a central hero. Now renders the GecorpID logo
+ * centered ABOVE the title (using /public/gecorpid_logo.png). Bottom brand
+ * block remains: only the logo is a link; the legend is plain text.
  */
 export default function Home() {
   const year = new Date().getFullYear();
-  // Track whether the logo loads correctly. If it fails, fall back to text.
+
+  // Bottom brand (GECORP) fallback
   const [logoOk, setLogoOk] = useState(true);
+  // Hero GecorpID logo fallback
+  const [heroLogoOk, setHeroLogoOk] = useState(true);
 
   return (
     <main className="wrap">
-      {/* HEADER removed: brand moved to bottom */}
-
-      {/* HERO: central title and call to action buttons */}
+      {/* HERO: logo above the title, then subtitle and CTAs */}
       <section className="hero" aria-labelledby="hero-title">
+        {/* Centered GecorpID logo above title */}
+        {heroLogoOk && (
+          <div className="heroLogoWrap">
+            <img
+              src="/gecorpid_logo.png"
+              alt="GecorpID"
+              width={140}
+              height={140}
+              className="heroLogo"
+              loading="eager"
+              decoding="async"
+              onError={() => setHeroLogoOk(false)}
+            />
+          </div>
+        )}
+
         <h1 id="hero-title" className="title">
           GecorpID
         </h1>
@@ -60,9 +72,9 @@ export default function Home() {
             <div className="icon" aria-hidden>
               🔍
             </div>
-            <h3>One‑click verification</h3>
+            <h3>One-click verification</h3>
             <p>
-              The QR‑stamped copy points to the public page so anyone can validate integrity and
+              The QR-stamped copy points to the public page so anyone can validate integrity and
               issuer authenticity.
             </p>
           </article>
@@ -82,7 +94,7 @@ export default function Home() {
             </div>
             <h3>Tenants &amp; credits</h3>
             <p>
-              Multi‑tenant, credit‑based flow. Start processing when you’re ready—no silent
+              Multi-tenant, credit-based flow. Start processing when you’re ready—no silent
               background actions.
             </p>
           </article>
@@ -99,7 +111,7 @@ export default function Home() {
             <span className="badge">1</span>
             <div>
               <h4>Upload</h4>
-              <p>Send your PDF. The system stores the original and creates a QR‑stamped copy.</p>
+              <p>Send your PDF. The system stores the original and creates a QR-stamped copy.</p>
             </div>
           </li>
           <li className="step">
@@ -137,11 +149,11 @@ export default function Home() {
           </li>
           <li>
             <span className="check">✓</span>
-            Self‑verifiable: no central database dependency.
+            Self-verifiable: no central database dependency.
           </li>
           <li>
             <span className="check">✓</span>
-            Tamper‑evident: any change breaks verification.
+            Tamper-evident: any change breaks verification.
           </li>
           <li>
             <span className="check">✓</span>
@@ -179,7 +191,7 @@ export default function Home() {
 
       {/* FOOTER with DID link */}
       <footer className="footer">
-        © {year} GecorpID —{' '}
+        © {year} GecorpID —{" "}
         <a href="/.well-known/did.json" target="_blank" rel="noopener noreferrer">
           View issuer DID document
         </a>
@@ -188,7 +200,7 @@ export default function Home() {
       {/* Inline styles scoped to this page */}
       <style jsx>{`
         :root {
-          /* High‑contrast palette */
+          /* High-contrast palette */
           --bg: #f6f7fb;
           --ink: #0b0d12;
           --muted: #4b5563;
@@ -229,57 +241,6 @@ export default function Home() {
             var(--bg);
         }
 
-        /* HEADER */
-        .nav {
-          max-width: 1160px;
-          margin: 0 auto;
-          background: transparent;
-          display: flex;
-          align-items: flex-start;
-          justify-content: flex-start;
-          padding: 0;
-        }
-        .brand {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 6px;
-        }
-        .logoLink {
-          display: inline-flex;
-          align-items: center;
-        }
-        .logoImg {
-          display: block;
-          width: 40px;
-          height: 40px;
-          object-fit: cover;
-          border-radius: 6px;
-          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-        }
-        .logoFallback {
-          font-weight: 800;
-          letter-spacing: 0.2px;
-          font-size: 18px;
-        }
-        .legend {
-          font-size: 12px;
-          color: var(--muted);
-        }
-        .legend a {
-          color: var(--muted);
-          text-decoration: underline;
-        }
-        .legend a:hover {
-          color: #111827;
-        }
-
-        /* Positioning for the brand at the bottom of the page */
-        .brandBottom {
-          max-width: 1160px;
-          margin: 0 auto;
-        }
-
         /* HERO */
         .hero {
           max-width: 1160px;
@@ -291,6 +252,22 @@ export default function Home() {
           box-shadow: var(--shadow);
           padding: 44px 20px 28px;
         }
+
+        /* New: hero logo centered above title */
+        .heroLogoWrap {
+          display: flex;
+          justify-content: center;
+          margin-bottom: 10px;
+        }
+        .heroLogo {
+          display: block;
+          width: clamp(96px, 18vw, 160px);
+          height: auto;
+          object-fit: contain;
+          border-radius: 12px;
+          box-shadow: 0 6px 22px rgba(2, 6, 23, 0.08);
+        }
+
         .title {
           font-size: clamp(34px, 6vw, 64px);
           line-height: 1.06;
@@ -327,6 +304,11 @@ export default function Home() {
         }
         .btn:active {
           transform: translateY(1px);
+        }
+        /* New: visible keyboard focus */
+        .btn:focus-visible {
+          outline: none;
+          box-shadow: 0 0 0 3px #fff, 0 0 0 5px var(--brand);
         }
         .btnPrimary {
           background: linear-gradient(180deg, #3b82f6, var(--brand));
@@ -419,7 +401,6 @@ export default function Home() {
           padding: 20px 16px 10px;
           color: var(--ink);
         }
-        /* Use the same ink colour for section headings inside the how panel */
         .contrast {
           color: var(--ink);
         }
@@ -499,6 +480,39 @@ export default function Home() {
           color: #10b981;
           font-weight: 800;
           border: 1px solid #d1fae5;
+        }
+
+        /* BOTTOM BRAND */
+        .brand {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 6px;
+        }
+        .logoLink {
+          display: inline-flex;
+          align-items: center;
+        }
+        .logoImg {
+          display: block;
+          width: 40px;
+          height: 40px;
+          object-fit: cover;
+          border-radius: 6px;
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+        }
+        .logoFallback {
+          font-weight: 800;
+          letter-spacing: 0.2px;
+          font-size: 18px;
+        }
+        .legend {
+          font-size: 12px;
+          color: var(--muted);
+        }
+        .brandBottom {
+          max-width: 1160px;
+          margin: 0 auto;
         }
 
         /* FOOTER */
