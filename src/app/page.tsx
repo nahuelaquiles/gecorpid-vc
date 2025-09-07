@@ -5,10 +5,8 @@ import { useState } from "react";
 
 /**
  * Landing page for GecorpID.
- *
- * Marketing-style landing with a central hero. Now renders the GecorpID logo
- * centered ABOVE the title (using /public/gecorpid_logo.png). Bottom brand
- * block remains: only the logo is a link; the legend is plain text.
+ * Hero SIN placa/fondo para que el logo (con transparencia) se funda con el fondo #f6f7fb.
+ * Se removieron los estilos que agregaban “recuadro” (border-radius/shadow) al logo.
  */
 export default function Home() {
   const year = new Date().getFullYear();
@@ -20,16 +18,16 @@ export default function Home() {
 
   return (
     <main className="wrap">
-      {/* HERO: logo above the title, then subtitle and CTAs */}
+      {/* HERO sin placa */}
       <section className="hero" aria-labelledby="hero-title">
-        {/* Centered GecorpID logo above title */}
+        {/* Logo centrado (PNG transparente recomendado) */}
         {heroLogoOk && (
           <div className="heroLogoWrap">
             <img
-              src="/gecorpid_logo.png"
+              src="/gecorpid_logo.png" // usa tu PNG transparente aquí
               alt="GecorpID"
-              width={140}
-              height={140}
+              width={160}
+              height={160}
               className="heroLogo"
               loading="eager"
               decoding="async"
@@ -197,15 +195,14 @@ export default function Home() {
         </a>
       </footer>
 
-      {/* Inline styles scoped to this page */}
+      {/* Inline styles */}
       <style jsx>{`
         :root {
-          /* High-contrast palette */
-          --bg: #f6f7fb;
+          --bg: #f6f7fb;    /* fondo página */
           --ink: #0b0d12;
           --muted: #4b5563;
 
-          --panel: #ffffff;
+          --panel: #ffffff; /* placas/cajas */
           --border: #e5e7eb;
 
           --brand: #1e40ff;
@@ -215,15 +212,9 @@ export default function Home() {
           --shadow: 0 10px 30px rgba(16, 24, 40, 0.08);
         }
 
-        * {
-          box-sizing: border-box;
-        }
+        * { box-sizing: border-box; }
 
-        html,
-        body,
-        .wrap {
-          min-height: 100%;
-        }
+        html, body, .wrap { min-height: 100%; }
 
         body {
           margin: 0;
@@ -241,31 +232,32 @@ export default function Home() {
             var(--bg);
         }
 
-        /* HERO */
+        /* HERO sin placa: fondo transparente */
         .hero {
           max-width: 1160px;
           margin: 0 auto;
           text-align: center;
-          background: var(--panel);
-          border: 1px solid var(--border);
-          border-radius: var(--radius);
-          box-shadow: var(--shadow);
-          padding: 44px 20px 28px;
+          background: transparent; /* <- clave */
+          border: 0;               /* <- clave */
+          box-shadow: none;        /* <- clave */
+          padding: 28px 20px 16px;
         }
 
-        /* New: hero logo centered above title */
         .heroLogoWrap {
           display: flex;
           justify-content: center;
           margin-bottom: 10px;
         }
+
+        /* Imagen del logo sin estilos que generen “recuadro” */
         .heroLogo {
           display: block;
-          width: clamp(96px, 18vw, 160px);
+          width: clamp(108px, 18vw, 160px);
           height: auto;
           object-fit: contain;
-          border-radius: 12px;
-          box-shadow: 0 6px 22px rgba(2, 6, 23, 0.08);
+          background: transparent; /* asegurar transparencia */
+          border-radius: 0;        /* <- quitar borde redondeado */
+          box-shadow: none;        /* <- quitar sombra */
         }
 
         .title {
@@ -302,44 +294,26 @@ export default function Home() {
           border: 1px solid transparent;
           user-select: none;
         }
-        .btn:active {
-          transform: translateY(1px);
-        }
-        /* New: visible keyboard focus */
-        .btn:focus-visible {
-          outline: none;
-          box-shadow: 0 0 0 3px #fff, 0 0 0 5px var(--brand);
-        }
+        .btn:active { transform: translateY(1px); }
+        .btn:focus-visible { outline: none; box-shadow: 0 0 0 3px #fff, 0 0 0 5px var(--brand); }
         .btnPrimary {
           background: linear-gradient(180deg, #3b82f6, var(--brand));
           color: #fff;
           border-color: var(--brand-600);
           box-shadow: 0 8px 28px rgba(30, 64, 255, 0.28);
         }
-        .btnPrimary:hover {
-          filter: brightness(1.04);
-        }
+        .btnPrimary:hover { filter: brightness(1.04); }
         .btnSecondary {
           background: #fff;
           color: var(--brand);
           border-color: rgba(30, 64, 255, 0.35);
           box-shadow: 0 8px 24px rgba(2, 6, 23, 0.06);
         }
-        .btnSecondary:hover {
-          background: rgba(30, 64, 255, 0.06);
-          border-color: var(--brand-600);
-        }
+        .btnSecondary:hover { background: rgba(30, 64, 255, 0.06); border-color: var(--brand-600); }
 
         /* FEATURES */
-        .features {
-          max-width: 1160px;
-          margin: 0 auto;
-        }
-        .sectionTitle {
-          font-size: 22px;
-          margin: 0 6px 14px;
-          letter-spacing: 0.2px;
-        }
+        .features { max-width: 1160px; margin: 0 auto; }
+        .sectionTitle { font-size: 22px; margin: 0 6px 14px; letter-spacing: 0.2px; }
         .grid {
           display: grid;
           grid-template-columns: repeat(12, 1fr);
@@ -354,10 +328,7 @@ export default function Home() {
           box-shadow: var(--shadow);
           transition: transform 0.12s ease, border-color 0.2s ease;
         }
-        .card:hover {
-          transform: translateY(-2px);
-          border-color: #d6dbe6;
-        }
+        .card:hover { transform: translateY(-2px); border-color: #d6dbe6; }
         .icon {
           font-size: 20px;
           width: 32px;
@@ -370,25 +341,10 @@ export default function Home() {
           color: var(--brand);
           margin-bottom: 6px;
         }
-        .card h3 {
-          margin: 4px 0 6px;
-          font-size: 18px;
-        }
-        .card p {
-          margin: 0;
-          color: var(--muted);
-          font-size: 15px;
-        }
-        @media (min-width: 740px) {
-          .card {
-            grid-column: span 6;
-          }
-        }
-        @media (min-width: 1024px) {
-          .card {
-            grid-column: span 3;
-          }
-        }
+        .card h3 { margin: 4px 0 6px; font-size: 18px; }
+        .card p { margin: 0; color: var(--muted); font-size: 15px; }
+        @media (min-width: 740px) { .card { grid-column: span 6; } }
+        @media (min-width: 1024px) { .card { grid-column: span 3; } }
 
         /* HOW IT WORKS */
         .how {
@@ -401,9 +357,7 @@ export default function Home() {
           padding: 20px 16px 10px;
           color: var(--ink);
         }
-        .contrast {
-          color: var(--ink);
-        }
+        .contrast { color: var(--ink); }
         .steps {
           list-style: none;
           margin: 10px 0 14px;
@@ -433,16 +387,8 @@ export default function Home() {
           color: #fff;
           border: none;
         }
-        .step h4 {
-          margin: 2px 0 6px;
-          font-size: 16px;
-          color: var(--ink);
-        }
-        .step p {
-          margin: 0;
-          color: var(--muted);
-          font-size: 14.5px;
-        }
+        .step h4 { margin: 2px 0 6px; font-size: 16px; color: var(--ink); }
+        .step p { margin: 0; color: var(--muted); font-size: 14.5px; }
 
         /* WHY VCs */
         .why {
@@ -483,54 +429,23 @@ export default function Home() {
         }
 
         /* BOTTOM BRAND */
-        .brand {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 6px;
-        }
-        .logoLink {
-          display: inline-flex;
-          align-items: center;
-        }
+        .brand { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+        .logoLink { display: inline-flex; align-items: center; }
         .logoImg {
-          display: block;
-          width: 40px;
-          height: 40px;
-          object-fit: cover;
-          border-radius: 6px;
-          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+          display: block; width: 40px; height: 40px; object-fit: cover;
+          border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.08);
         }
-        .logoFallback {
-          font-weight: 800;
-          letter-spacing: 0.2px;
-          font-size: 18px;
-        }
-        .legend {
-          font-size: 12px;
-          color: var(--muted);
-        }
-        .brandBottom {
-          max-width: 1160px;
-          margin: 0 auto;
-        }
+        .logoFallback { font-weight: 800; letter-spacing: 0.2px; font-size: 18px; }
+        .legend { font-size: 12px; color: var(--muted); }
+        .brandBottom { max-width: 1160px; margin: 0 auto; }
 
         /* FOOTER */
         .footer {
-          max-width: 1160px;
-          margin: 0 auto;
-          text-align: center;
-          color: var(--muted);
-          font-size: 13px;
-          padding: 6px 16px 12px;
+          max-width: 1160px; margin: 0 auto; text-align: center;
+          color: var(--muted); font-size: 13px; padding: 6px 16px 12px;
         }
-        .footer a {
-          color: #1e40ff;
-          text-decoration: underline;
-        }
-        .footer a:hover {
-          color: #162fb3;
-        }
+        .footer a { color: #1e40ff; text-decoration: underline; }
+        .footer a:hover { color: #162fb3; }
       `}</style>
     </main>
   );
