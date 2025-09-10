@@ -1,121 +1,235 @@
-// src/app/login/page.tsx
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import * as React from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+
+type Mode = 'signin' | 'signup';
+
+function getSupabaseClient(): SupabaseClient {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !anon) {
+    throw new Error(
+      'Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. ' +
+      'Please set them in your environment variables.'
+    );
+  }
+  return createClient(url, anon);
+}
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [errorMsg, setErrorMsg] = useState('');
-  const [loading, setLoading] = useState(false);
+  const search = useSearchParams();
+  const [supabase] = React.useState(() => getSupabaseClient());
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg('');
+  const [mode, setMode] = React.useState<Mode>('signin');
+  const [email, setEmail] = React.useState('');
+  const [password, setPassword] = React.useState('');
+  const [showPw, setShowPw] = React.useState(false);
+
+  const [loading, setLoading] = React.useState(false);
+  const [message, setMessage] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+
+  // Allow ?next=/some/path to override where we go after auth
+  const next = React.useMemo(() => {
+    const n = search?.get('next');
+    // Simple guard to avoid open redirects; only allow internal paths.
+    return n && n.startsWith('/') ? n : '/client';
+  }, [search]);
+
+  async function handleSignIn() {
     setLoading(true);
+    setError(null);
+    setMessage(null);
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+    setLoading(false);
 
-    try {
-      const res = await fetch('/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setErrorMsg(data?.error || 'Login failed');
-        return;
-      }
-
-      // Guarda las credenciales de trabajo para el cliente
-      localStorage.setItem('apiKey', data.apiKey);
-      localStorage.setItem('tenantId', data.tenantId);
-
-      // Redirige al panel del cliente (lo crearemos en el paso 4)
-      router.push('/client');
-    } catch (err: any) {
-      setErrorMsg(err?.message || 'Unexpected error');
-    } finally {
-      setLoading(false);
+    if (error) {
+      setError(error.message);
+      return;
     }
-  };
+
+    // If MFA/email confirmation is required, Supabase may return a message instead of a session.
+    if (!data.session) {
+      setMessage('Check your inbox to complete sign-in.');
+      return;
+    }
+
+    router.push(next);
+  }
+
+  async function handleSignUp() {
+    setLoading(true);
+    setError(null);
+    setMessage(null);
+    const redirectTo =
+      typeof window !== 'undefined'
+        ? `${window.location.origin}${next}`
+        : undefined;
+
+    const { data, error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: {
+        // If your project requires email confirmation, this helps the user land back in-app.
+        emailRedirectTo: redirectTo,
+      },
+    });
+    setLoading(false);
+
+    if (error) {
+      setError(error.message);
+      return;
+    }
+
+    // If your Supabase project requires email confirmation:
+    if (data.user && !data.session) {
+      setMessage('Account created. Please check your email to confirm your address.');
+      return;
+    }
+
+    // Otherwise, if session is immediately available:
+    router.push(next);
+  }
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (loading) return;
+    if (mode === 'signin') {
+      await handleSignIn();
+    } else {
+      await handleSignUp();
+    }
+  }
 
   return (
-    <main style={{ display: 'grid', placeItems: 'center', minHeight: '70vh', padding: '2rem' }}>
-      <div style={{ width: '100%', maxWidth: 420 }}>
-        <h1 style={{ fontSize: '1.6rem', marginBottom: '0.75rem' }}>Ingreso de cliente</h1>
-        <p style={{ color: '#666', marginBottom: '1.25rem' }}>
-          Usa el <b>email</b> y <b>password</b> del tenant que creaste en Supabase.
-        </p>
+    <main className="min-h-screen w-full bg-gray-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
+        <header className="mb-6">
+          <h1 className="text-2xl font-semibold tracking-tight">Client Access</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Sign in with your organization-provided credentials to access your dashboard.
+          </p>
+        </header>
 
-        <form onSubmit={onSubmit} style={{ display: 'grid', gap: '0.75rem' }}>
-          <label style={{ display: 'grid', gap: '0.35rem' }}>
-            <span>Email</span>
+        <form onSubmit={onSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="email" className="block text-sm font-medium mb-1">
+              Email
+            </label>
             <input
+              id="email"
               type="email"
+              autoComplete="email"
+              required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              required
-              placeholder="cliente@ejemplo.com"
-              style={{
-                padding: '0.6rem 0.7rem',
-                border: '1px solid #ccc',
-                borderRadius: 8,
-              }}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-800"
+              placeholder="you@company.com"
             />
-          </label>
+          </div>
 
-          <label style={{ display: 'grid', gap: '0.35rem' }}>
-            <span>Password</span>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              placeholder="••••••"
-              style={{
-                padding: '0.6rem 0.7rem',
-                border: '1px solid #ccc',
-                borderRadius: 8,
-              }}
-            />
-          </label>
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium mb-1">
+              Password
+            </label>
+            <div className="relative">
+              <input
+                id="password"
+                type={showPw ? 'text' : 'password'}
+                autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 pr-24 focus:outline-none focus:ring-2 focus:ring-gray-800"
+                placeholder={mode === 'signin' ? 'Your password' : 'Create a strong password'}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPw((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-gray-600 hover:text-gray-900"
+                aria-label={showPw ? 'Hide password' : 'Show password'}
+              >
+                {showPw ? 'Hide' : 'Show'}
+              </button>
+            </div>
+          </div>
+
+          {error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+          {message && (
+            <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
+              {message}
+            </div>
+          )}
 
           <button
             type="submit"
             disabled={loading}
-            style={{
-              padding: '0.7rem 0.9rem',
-              borderRadius: 10,
-              border: '1px solid #222',
-              background: loading ? '#999' : '#222',
-              color: '#fff',
-              fontWeight: 600,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              transition: 'opacity .2s',
-            }}
+            className="w-full rounded-xl px-4 py-2.5 bg-black text-white font-medium hover:opacity-90 disabled:opacity-60"
           >
-            {loading ? 'Verificando…' : 'Entrar'}
+            {loading ? (mode === 'signin' ? 'Signing in…' : 'Creating account…') : (mode === 'signin' ? 'Sign in' : 'Create account')}
           </button>
-
-          {errorMsg ? (
-            <div style={{ color: '#b00020', marginTop: '0.25rem' }}>{errorMsg}</div>
-          ) : null}
         </form>
 
-        <div style={{ marginTop: '1rem', fontSize: '0.92rem' }}>
-          <a href="/" style={{ color: '#555', textDecoration: 'underline' }}>Volver al inicio</a>
+        <div className="mt-4 text-sm text-gray-600">
+          {mode === 'signin' ? (
+            <p>
+              Don&apos;t have an account?{' '}
+              <button
+                className="underline underline-offset-4 hover:text-gray-900"
+                onClick={() => {
+                  setMode('signup');
+                  setError(null);
+                  setMessage(null);
+                }}
+              >
+                Create one
+              </button>
+              .
+            </p>
+          ) : (
+            <p>
+              Already have an account?{' '}
+              <button
+                className="underline underline-offset-4 hover:text-gray-900"
+                onClick={() => {
+                  setMode('signin');
+                  setError(null);
+                  setMessage(null);
+                }}
+              >
+                Sign in
+              </button>
+              .
+            </p>
+          )}
         </div>
 
-        <div style={{ marginTop: '1rem', color: '#666', fontSize: '0.9rem' }}>
+        <hr className="my-6" />
+
+        <section className="space-y-2 text-xs text-gray-500">
           <p>
-            Tras un login exitoso, te redirige a <code>/client</code>. Si ves “Not Found” es normal
-            hasta que creemos esa página en el paso 4. Las claves quedan guardadas en tu navegador.
+            Authentication is securely handled by Supabase. Your session is stored locally on
+            this device and will persist until you sign out or clear your browser data.
           </p>
-        </div>
+          <p>
+            If you were invited by a genetics service provider and cannot sign in,
+            please contact their support or your administrator to confirm your email is registered.
+          </p>
+          <p>
+            By continuing, you agree not to share credentials and to comply with your organization’s security policy.
+          </p>
+        </section>
       </div>
     </main>
   );
