@@ -25,6 +25,10 @@
     "web-did-resolver": "^2.0.30",
     "zod": "^4.0.16",
     "clsx": "^2.1.1",
+    "pdf-lib": "^1.17.1",
+"qrcode": "^1.5.3",
+"uuid": "^9.0.1",
+"jose": "^5.2.0",
     "lucide-react": "^0.453.0",
     "tailwind-merge": "^2.5.2"
   },
