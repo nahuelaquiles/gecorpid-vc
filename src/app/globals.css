@@ -1,7 +1,8 @@
-/* Global styles for GecorpID app. This file intentionally remains light
-   since the landing page defines most of its own styles via JSX. It
-   establishes a neutral font stack and some base styles for better
-   rendering across browsers. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Global styles for GecorpID app. Keep it minimal; Tailwind does the heavy lifting. */
 
 html {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
