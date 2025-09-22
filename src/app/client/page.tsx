@@ -1,451 +1,208 @@
-// src/app/client/page.tsx
-"use client";
+/* eslint-disable @next/next/no-img-element */
+'use client';
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useState } from 'react';
+import QRCode from 'qrcode';
+import { PDFDocument } from 'pdf-lib';
 
-type HistoryItem = {
-  id: string;
-  createdAt: string | null;
-  originalPath: string | null;
-  processedPath: string | null;
-  originalUrl: string | null;
-  processedUrl: string | null;
-  verifyUrl: string;
-};
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://gecorpid.com';
 
-type UploadItem = {
-  id: string; // local id
-  file: File;
-  progress: number; // 0..100
-  status: "queued" | "uploading" | "done" | "error";
-  error?: string;
-  serverId?: string; // file id from API, if provided
-  downloadUrl?: string; // object URL when API returns a PDF
-};
+type Step = 1 | 2 | 3 | 4;
 
-const LS_KEYS = ["apiKey", "tenantId", "gecorpid_apiKey", "gecorpid_tenantId"];
+export default function ClientPortal() {
+  const [apiKey, setApiKey] = useState('');
+  const [cid, setCid] = useState<string | null>(null);
+  const [verifyUrl, setVerifyUrl] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [stampedBytes, setStampedBytes] = useState<Uint8Array | null>(null);
+  const [sha256, setSha256] = useState<string | null>(null);
+  const [vcJwt, setVcJwt] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [step, setStep] = useState<Step>(1);
+  const [msg, setMsg] = useState<string | null>(null);
 
-function getFromLocalStorage(): { apiKey: string | null; tenantId: string | null } {
-  if (typeof window === "undefined") return { apiKey: null, tenantId: null };
-  let apiKey: string | null = null;
-  let tenantId: string | null = null;
-  for (const k of LS_KEYS) {
-    const v = localStorage.getItem(k);
-    if (v && !apiKey && k.toLowerCase().includes("apikey")) apiKey = v;
-    if (v && !tenantId && k.toLowerCase().includes("tenant")) tenantId = v;
-  }
-  apiKey = apiKey || localStorage.getItem("apiKey");
-  tenantId = tenantId || localStorage.getItem("tenantId");
-  return { apiKey, tenantId };
-}
-
-export default function ClientPage() {
-  const [{ apiKey, tenantId }, setAuth] = useState(getFromLocalStorage());
-  const [tenantName, setTenantName] = useState<string | null>(null);
-  const [credits, setCredits] = useState<number | null>(null);
-  const [loadingCredits, setLoadingCredits] = useState(false);
-
-  const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [loadingHistory, setLoadingHistory] = useState(false);
-
-  const [queue, setQueue] = useState<UploadItem[]>([]);
-  const inputRef = useRef<HTMLInputElement | null>(null);
-
-  useEffect(() => {
-    setAuth(getFromLocalStorage());
-  }, []);
-
-  useEffect(() => {
-    if (!apiKey) return;
-    refreshCredits();
-    refreshHistory();
-  }, [apiKey]);
-
-  async function refreshCredits() {
-    if (!apiKey) return;
-    setLoadingCredits(true);
+  async function requestCID() {
+    if (!apiKey) { setMsg('Ingresá tu API Key'); return; }
+    setBusy(true); setMsg(null);
     try {
-      const res = await fetch("/api/credits", {
-        headers: { "x-api-key": apiKey },
-        cache: "no-store",
-      });
-      const data = await res.json();
-      if (res.ok) setCredits(data.credits ?? 0);
-      else throw new Error(data?.error || "Unable to load credits");
-    } catch {
-      setCredits(null);
+      const r = await fetch('/api/issue-request', { method: 'POST', headers: { 'x-api-key': apiKey } });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Error solicitando CID');
+      setCid(j.cid);
+      setVerifyUrl(j.verify_url);
+      setStep(2);
+    } catch (e: any) {
+      setMsg(e.message);
     } finally {
-      setLoadingCredits(false);
+      setBusy(false);
     }
   }
 
-  async function refreshHistory() {
-    if (!apiKey) return;
-    setLoadingHistory(true);
+  async function stampQrLocally() {
+    if (!file || !verifyUrl) { setMsg('Elegí un PDF y solicitá CID primero'); return; }
+    setBusy(true); setMsg(null);
     try {
-      const res = await fetch("/api/files/list?limit=50", {
-        headers: { "x-api-key": apiKey },
-        cache: "no-store",
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Unable to load files");
-      setHistory(data.items || []);
-      setTenantName(data.tenantName || null);
-    } catch {
-      setHistory([]);
-      setTenantName(null);
+      const qrDataUrl = await QRCode.toDataURL(verifyUrl);
+      const pdfBytes = new Uint8Array(await file.arrayBuffer());
+      const pdf = await PDFDocument.load(pdfBytes);
+
+      // Incrustar QR en primera página (esquinas inferiores derechas)
+      const page = pdf.getPages()[0];
+      const { width } = page.getSize();
+      const png = await pdf.embedPng(qrDataUrl);
+      const size = 120;
+      page.drawImage(png, { x: width - size - 20, y: 20, width: size, height: size });
+
+      const saved = await pdf.save({ useObjectStreams: false }); // estable para hashing
+      const stamped = new Uint8Array(saved);
+      setStampedBytes(stamped);
+      setStep(3);
+    } catch (e: any) {
+      setMsg(e.message);
     } finally {
-      setLoadingHistory(false);
+      setBusy(false);
     }
   }
 
-  function onChooseFiles(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files ? Array.from(e.target.files) : [];
-    enqueue(files);
-    if (inputRef.current) inputRef.current.value = "";
-  }
-
-  // NO auto-run: el usuario debe pulsar "Start"
-  function enqueue(files: File[]) {
-    if (!files.length) return;
-    const pdfs = files.filter((f) => f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf"));
-    const items: UploadItem[] = pdfs.map((f) => ({
-      id: `${Date.now()}_${f.name}_${Math.random().toString(36).slice(2, 7)}`,
-      file: f,
-      progress: 0,
-      status: "queued",
-    }));
-    setQueue((prev) => [...items, ...prev]); // agrega a la cola, pero NO corre automáticamente
-  }
-
-  async function uploadOne(item: UploadItem): Promise<UploadItem> {
-    if (!apiKey) return { ...item, status: "error", error: "Missing apiKey" };
-
-    return await new Promise<UploadItem>((resolve) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open("POST", "/api/upload", true);
-      xhr.setRequestHeader("x-api-key", apiKey);
-      xhr.responseType = "blob"; // soporta PDF/binario o JSON como texto
-
-      xhr.upload.onprogress = (ev) => {
-        if (!ev.lengthComputable) return;
-        const pct = Math.round((ev.loaded / ev.total) * 100);
-        setQueue((prev) => prev.map((q) => (q.id === item.id ? { ...q, progress: pct, status: "uploading" } : q)));
-      };
-
-      xhr.onload = async () => {
-        const ok = xhr.status >= 200 && xhr.status < 300;
-        const ct = (xhr.getResponseHeader("content-type") || "").toLowerCase();
-        const blob = xhr.response as Blob;
-
-        const fail = async (msg?: string) => {
-          let text = msg;
-          try {
-            if (!text) text = await blob.text();
-          } catch {}
-          setQueue((prev) =>
-            prev.map((q) => (q.id === item.id ? { ...q, status: "error", error: text || `HTTP ${xhr.status}`, progress: 100 } : q)),
-          );
-          resolve({ ...item, status: "error", error: text || `HTTP ${xhr.status}`, progress: 100 });
-        };
-
-        if (!ok) return void (await fail());
-
-        try {
-          // Caso 1: JSON (API puede devolver JSON en algunos flujos)
-          if (ct.includes("application/json")) {
-            const text = await blob.text();
-            const body = JSON.parse(text || "{}");
-            const serverId = body?.id || body?.fileId || null;
-            setQueue((prev) =>
-              prev.map((q) => (q.id === item.id ? { ...q, status: "done", progress: 100, serverId } : q)),
-            );
-            resolve({ ...item, status: "done", progress: 100, serverId });
-            return;
-          }
-          // Caso 2: PDF/binario → descarga
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          const base = item.file.name.replace(/\.pdf$/i, "");
-          a.download = `${base}-qr.pdf`;
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          setQueue((prev) =>
-            prev.map((q) => (q.id === item.id ? { ...q, status: "done", progress: 100, downloadUrl: url } : q)),
-          );
-          setTimeout(() => URL.revokeObjectURL(url), 60_000);
-          resolve({ ...item, status: "done", progress: 100, downloadUrl: url });
-        } catch (err: any) {
-          await fail(err?.message);
-        }
-      };
-
-      xhr.onerror = () => {
-        setQueue((prev) =>
-          prev.map((q) => (q.id === item.id ? { ...q, status: "error", error: "Network error", progress: 100 } : q)),
-        );
-        resolve({ ...item, status: "error", error: "Network error", progress: 100 });
-      };
-
-      const fd = new FormData();
-      fd.append("file", item.file, item.file.name);
-      xhr.send(fd);
-    });
-  }
-
-  const uploading = useMemo(() => queue.some((q) => q.status === "uploading"), [queue]);
-  const hasQueued = useMemo(() => queue.some((q) => q.status === "queued"), [queue]);
-
-  async function runQueue() {
-    for (const qi of queue) {
-      if (qi.status !== "queued") continue;
-      const res = await uploadOne(qi);
-      setQueue((prev) => prev.map((q) => (q.id === qi.id ? res : q)));
-      await Promise.all([refreshCredits(), refreshHistory()]);
-    }
-  }
-
-  // --- HISTORIAL ORDENADO (más reciente primero) ---
-  const sortedHistory = useMemo(() => {
-    return [...history].sort((a, b) => {
-      const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-      const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      if (ta !== tb) return tb - ta; // descendente
-      return b.id.localeCompare(a.id);
-    });
-  }, [history]);
-
-  const fmt = (s: string | null) => {
-    if (!s) return "—";
+  async function computeHash() {
+    if (!stampedBytes) { setMsg('Primero generá el PDF con QR'); return; }
+    setBusy(true); setMsg(null);
     try {
-      return new Date(s).toLocaleString();
-    } catch {
-      return s;
+      const hashBuf = await crypto.subtle.digest('SHA-256', stampedBytes);
+      const hex = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+      setSha256(hex);
+      setStep(4);
+    } catch (e: any) {
+      setMsg(e.message);
+    } finally {
+      setBusy(false);
     }
-  };
+  }
 
-  function logout() {
-    LS_KEYS.forEach((key) => localStorage.removeItem(key));
-    setAuth(getFromLocalStorage());
-    setQueue([]);
-    setHistory([]);
-    setCredits(null);
-    setTenantName(null);
+  async function issueFinal() {
+    if (!apiKey || !cid || !sha256) { setMsg('Faltan datos (API Key, CID, SHA-256)'); return; }
+    setBusy(true); setMsg(null);
+    try {
+      const r = await fetch('/api/issue-final', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+        body: JSON.stringify({ cid, sha256, doc_type: 'genetic_report' })
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Error emitiendo la VC');
+      setVcJwt(j.vc_jwt);
+      setMsg('¡Credencial emitida con éxito! (se descontó 1 crédito)');
+    } catch (e: any) {
+      setMsg(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function downloadStamped() {
+    if (!stampedBytes) return;
+    const blob = new Blob([stampedBytes], { type: 'application/pdf' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `documento_con_QR_${cid || 'verificable'}.pdf`;
+    a.click();
   }
 
   return (
-    <main className="wrap">
-      <div className="top">
-        <div className="brand">
-          <span className="dot" />
-          <span className="logo">GECORPID • VC</span>
-        </div>
-        <div className="actions">
-          <span className="badge">
-            {tenantName ? `Tenant ${tenantName}` : tenantId ? `Tenant ${tenantId}` : 'No Tenant'}
-          </span>
-          {credits !== null && <span className="badge">Credits: {credits}</span>}
-          <button className="btn tiny ghost" onClick={() => { refreshCredits(); refreshHistory(); }}>
-            Refresh
-          </button>
-          <button className="btn danger" onClick={logout}>Logout</button>
-        </div>
-      </div>
+    <div className="min-h-screen bg-slate-50 text-slate-800">
+      <div className="max-w-3xl mx-auto py-10 px-6">
+        <h1 className="text-2xl font-semibold mb-4">Portal del Cliente — Emisión local sin subir PDFs</h1>
+        <p className="text-sm text-slate-600 mb-6">
+          Flujo: <b>Solicitar CID → Estampar QR local → Calcular SHA-256 → Emitir VC</b>. 
+          El PDF nunca sale de tu computadora/servidor.
+        </p>
 
-      <section className="grid">
-        <article className="card">
-          <h3>Upload new PDFs</h3>
-          <p className="muted small">Select one or more PDF files to upload and embed a QR code.</p>
-
-          <div className="drop">
-            <label className="btn primary">
-              Choose PDF(s)
-              <input type="file" accept=".pdf,application/pdf" multiple ref={inputRef} onChange={onChooseFiles} />
-            </label>
-            {uploading && <span className="status uploading">Uploading…</span>}
+        <div className="space-y-6">
+          {/* Paso 1 */}
+          <div className="rounded-2xl border bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-semibold">Paso 1 — Solicitar CID</h2>
+              <span className="text-xs px-2 py-1 rounded bg-slate-100">Estado: {step >= 2 ? 'OK' : 'Pendiente'}</span>
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="password"
+                placeholder="Tu API Key"
+                className="flex-1 rounded-lg border px-3 py-2"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+              />
+              <button onClick={requestCID} className="px-4 py-2 rounded-lg bg-slate-800 text-white" disabled={busy}>
+                Obtener CID
+              </button>
+            </div>
+            {cid && verifyUrl && (
+              <div className="mt-3 text-sm">
+                <div><b>CID:</b> <span className="font-mono">{cid}</span></div>
+                <div><b>URL de verificación:</b> <a className="text-blue-600 underline" href={verifyUrl} target="_blank">{verifyUrl}</a></div>
+              </div>
+            )}
           </div>
 
-          {/* Encabezado de cola con botón Start */}
-          {queue.length > 0 && (
-            <div className="qhead">
-              <strong>Queue</strong>
-              <div className="qactions">
-                <button
-                  className="btn primary"
-                  disabled={!hasQueued || uploading}
-                  onClick={runQueue}
-                >
-                  Start
-                </button>
-                <button
-                  className="btn ghost"
-                  onClick={() => setQueue(q => q.filter(i => i.status !== "done"))}
-                  title="Clear items already processed"
-                >
-                  Clear done
-                </button>
-              </div>
+          {/* Paso 2 */}
+          <div className="rounded-2xl border bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-semibold">Paso 2 — Elegí PDF y estampá QR local</h2>
+              <span className="text-xs px-2 py-1 rounded bg-slate-100">Estado: {step >= 3 ? 'OK' : 'Pendiente'}</span>
             </div>
-          )}
+            <div className="flex items-center gap-2">
+              <input type="file" accept="application/pdf" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+              <button onClick={stampQrLocally} className="px-4 py-2 rounded-lg bg-slate-800 text-white" disabled={busy || !cid || !verifyUrl || !file}>
+                Estampar QR (local)
+              </button>
+              <button onClick={downloadStamped} className="px-4 py-2 rounded-lg border" disabled={!stampedBytes}>
+                Descargar PDF con QR
+              </button>
+            </div>
+          </div>
 
-          <ul className="qlist">
-            {queue.map((q) => (
-              <li key={q.id} className="qitem">
-                <div className="row1">
-                  <span className="name" title={q.file.name}>{q.file.name}</span>
-                  <span className={`status ${q.status}`}>{q.status}</span>
-                </div>
-                <div className="bar">
-                  <div className="fill" style={{ width: `${q.progress}%` }} />
-                </div>
-                {q.downloadUrl && q.status === "done" && (
-                  <div className="again">
-                    <a href={q.downloadUrl} download>
-                      Download again
-                    </a>
+          {/* Paso 3 */}
+          <div className="rounded-2xl border bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-semibold">Paso 3 — Calcular SHA-256 (local)</h2>
+              <span className="text-xs px-2 py-1 rounded bg-slate-100">Estado: {step >= 4 ? 'OK' : 'Pendiente'}</span>
+            </div>
+            <button onClick={computeHash} className="px-4 py-2 rounded-lg bg-slate-800 text-white" disabled={busy || !stampedBytes}>
+              Calcular Hash
+            </button>
+            {sha256 && (
+              <div className="mt-3 text-sm">
+                <div><b>SHA-256:</b> <span className="font-mono break-all">{sha256}</span></div>
+                <div><b>Huella corta:</b> <span className="font-mono">{sha256.slice(-8).toUpperCase()}</span></div>
+              </div>
+            )}
+          </div>
+
+          {/* Paso 4 */}
+          <div className="rounded-2xl border bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-semibold">Paso 4 — Emitir VC (sin subir PDF)</h2>
+            </div>
+            <button onClick={issueFinal} className="px-4 py-2 rounded-lg bg-emerald-600 text-white" disabled={busy || !sha256 || !cid}>
+              Emitir Credencial
+            </button>
+            {vcJwt && (
+              <div className="mt-4">
+                <div className="text-sm font-semibold mb-1">VC (JWT):</div>
+                <textarea className="w-full h-40 text-xs font-mono rounded-lg border p-2" readOnly value={vcJwt} />
+                {verifyUrl && (
+                  <div className="mt-2 text-sm">
+                    Verificación pública: <a className="text-blue-600 underline" href={verifyUrl} target="_blank">{verifyUrl}</a>
                   </div>
                 )}
-                {q.error && <div className="error">Error: {q.error}</div>}
-              </li>
-            ))}
-          </ul>
-        </article>
-
-        <article className="card">
-          <h3>History</h3>
-          <p className="muted small">Latest files issued by this tenant.</p>
-
-          {loadingHistory ? (
-            <p className="muted">Loading…</p>
-          ) : history.length === 0 ? (
-            <p className="muted">No files yet.</p>
-          ) : (
-            <div className="tableWrap">
-              <div className="tableScroll">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th style={{width: "34%"}}>ID</th>
-                      <th style={{width: "18%"}}>Issued at</th>
-                      <th style={{width: "20%"}}>Verify</th>
-                      <th style={{width: "14%"}}>Original</th>
-                      <th style={{width: "14%"}}>With QR</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedHistory.map((it) => (
-                      <tr key={it.id}>
-                        <td className="mono idcell" title={it.id}>{it.id}</td>
-                        <td className="mono small">{fmt(it.createdAt)}</td>
-                        <td>
-                          <div className="cellActions">
-                            <a href={it.verifyUrl} target="_blank" rel="noreferrer">open</a>
-                            <button className="btn tiny ghost" onClick={() => navigator.clipboard.writeText(it.verifyUrl)}>copy</button>
-                          </div>
-                        </td>
-                        <td>
-                          {it.originalUrl ? (
-                            <a href={it.originalUrl} target="_blank" rel="noreferrer">open</a>
-                          ) : (
-                            "—"
-                          )}
-                        </td>
-                        <td>
-                          {it.processedUrl ? (
-                            <a href={it.processedUrl} target="_blank" rel="noreferrer">open</a>
-                          ) : (
-                            "—"
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
               </div>
-              <div className="legend">
-                <span className="watermark">developed by gecorp.com.ar</span>
-              </div>
-            </div>
-          )}
-        </article>
-      </section>
+            )}
+          </div>
 
-      <style jsx>{styles}</style>
-    </main>
+          {busy && <div className="text-sm">Procesando…</div>}
+          {msg && <div className="text-sm text-rose-600">{msg}</div>}
+        </div>
+      </div>
+    </div>
   );
 }
-
-const styles = `
-:root{
-  --bg:#0b0e14; --panel: rgba(255,255,255,0.06); --card: rgba(255,255,255,0.08);
-  --text:#e7eef7; --muted:#b8c4d6; --accent:#4f8cff; --accent-2:#2e6dff;
-  --ring:rgba(79,140,255,.45); --danger:#e5484d; --shadow:0 10px 30px rgba(0,0,0,.25);
-  --radius:14px;
-}
-@media (prefers-color-scheme: light){
-  :root{
-    --bg:#f7f9fc; --panel: rgba(0,0,0,0.04); --card:#fff; --text:#0f172a; --muted:#475569;
-    --accent:#3457d5; --accent-2:#2747c7; --ring:rgba(52,87,213,.35); --danger:#d11a2a;
-    --shadow:0 10px 24px rgba(2,6,23,.06);
-  }
-}
-*{box-sizing:border-box}
-.wrap{min-height:100svh; padding:24px; background:
-  radial-gradient(1000px 600px at 20% -10%, rgba(79,140,255, .18), transparent 60%),
-  radial-gradient(800px 500px at 95% 0%, rgba(79,140,255, .12), transparent 60%),
-  var(--bg); color:var(--text)}
-.top{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 14px; border-radius:14px; background:var(--panel); box-shadow:var(--shadow);}
-.brand{display:flex; align-items:center; gap:10px; font-weight:700}
-.dot{width:10px;height:10px;border-radius:999px;background:linear-gradient(135deg,var(--accent),var(--accent-2)); box-shadow:0 0 0 6px var(--ring)}
-.logo{font-size:15px}
-.actions{display:flex; gap:10px; align-items:center}
-.badge{padding:6px 10px; border-radius:999px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18)}
-.grid{display:grid; grid-template-columns:1.2fr .8fr; gap:16px; margin-top:16px}
-@media (max-width: 1000px){ .grid{grid-template-columns:1fr} }
-.card{background:var(--card); border:1px solid rgba(255,255,255,.12); border-radius:14px; box-shadow:var(--shadow); padding:18px}
-h3{margin:0 0 8px 0}
-.muted{color:var(--muted)}
-.small{font-size:13px}
-.btn{display:inline-flex;align-items:center;justify-content:center;height:34px;padding:0 12px;border-radius:10px;border:1px solid transparent; box-shadow:var(--shadow); font-size:13px}
-.btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent-2)); color:#fff}
-.btn.ghost{background:transparent; border-color:rgba(255,255,255,.24)}
-.btn.danger{background:transparent; color:#fff; border-color:var(--danger)}
-.btn.tiny{height:28px; padding:0 10px; font-size:12px}
-.drop{display:flex; gap:10px; align-items:center}
-.drop input[type=file]{display:none}
-.qlist{list-style:none; padding:0; margin:10px 0 0 0; display:grid; gap:10px}
-.qitem{padding:10px; border-radius:10px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12)}
-.qitem .row1{display:flex; align-items:center; justify-content:space-between; gap:10px}
-.qitem .name{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:60ch}
-.status{font-size:12px; opacity:.8}
-.status.uploading{color:#fff}
-.status.done{color:#a2f39b}
-.status.error{color:#ff7a7a}
-.bar{height:8px; background:rgba(255,255,255,.08); border-radius:999px; overflow:hidden; margin-top:6px}
-.fill{height:100%; background:linear-gradient(90deg,var(--accent),var(--accent-2))}
-.error{margin-top:6px; color:var(--danger); font-size:12px}
-.again{margin-top:6px; font-size:13px}
-.qhead{display:flex; align-items:center; justify-content:space-between; margin-top:10px}
-.qactions{display:flex; gap:8px}
-
-/* HISTORY TABLE */
-.tableWrap{margin-top:8px; border:1px solid rgba(255,255,255,.14); border-radius:12px; overflow:hidden; background:rgba(255,255,255,.04)}
-.tableScroll{max-height:520px; overflow:auto}
-.table{width:100%; border-collapse:separate; border-spacing:0}
-.table thead th{position:sticky; top:0; background:rgba(255,255,255,.06); backdrop-filter:blur(6px); border-bottom:1px solid rgba(255,255,255,.18); text-align:left; padding:10px 12px; font-weight:700}
-.table tbody td{padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.08); vertical-align:middle}
-.idcell{max-width: 0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-.cellActions{display:flex; gap:8px; align-items:center}
-.mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
-
-.legend{display:flex; justify-content:flex-end; padding:8px 10px}
-.watermark{font-size:12px; opacity:.55}
-
-/* light theme tweaks */
-@media (prefers-color-scheme: light){
-  .tableWrap{background:#fff}
-  .table thead th{background:#f3f5fb}
-}
-`;
