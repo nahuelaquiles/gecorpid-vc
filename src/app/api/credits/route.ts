@@ -1,99 +1,63 @@
 // src/app/api/credits/route.ts
-import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import { createHash } from 'node:crypto';
 
-type TenantRow = {
-  id: string;
-  api_key: string | null;
-  is_active: boolean | null;
-};
+/**
+ * Returns the remaining credit balance for the current tenant. The
+ * tenant is resolved by host or cookie as per other server
+ * endpoints. Credits are read from the `tenants.credits` column,
+ * defaulting to zero if not present.
+ */
 
-type CreditRow = {
-  tenant_id: string;
-  credits: number | null;
-};
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
-function readApiKey(req: NextRequest): string | null {
-  // 1) Header x-api-key
-  const fromHeader = req.headers.get("x-api-key");
-  if (fromHeader) return fromHeader.trim();
+const SUPABASE_URL = process.env.SUPABASE_URL!;
+const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE!;
 
-  // 2) Authorization: Bearer <apiKey>
-  const auth = req.headers.get("authorization") || req.headers.get("Authorization");
-  if (auth && auth.toLowerCase().startsWith("bearer ")) {
-    return auth.slice(7).trim();
+function sha256Hex(input: string) {
+  return createHash('sha256').update(input).digest('hex');
+}
+
+async function getTenantByApiKey(supabase: any, apiKey: string) {
+  let { data, error } = await supabase.from('tenants').select('*').eq('api_key', apiKey).maybeSingle();
+  if (data && !error) return data;
+  try {
+    const hash = sha256Hex(apiKey);
+    const res = await supabase.from('tenants').select('*').eq('api_key_hash', hash).maybeSingle();
+    if (res.data) return res.data;
+  } catch {}
+  return null;
+}
+
+async function resolveTenant(req: NextRequest, supabase: any) {
+  const hostHeader = req.headers.get('host') || req.headers.get('x-forwarded-host') || '';
+  const hostname = hostHeader.split(':')[0];
+  if (hostname) {
+    const { data: t, error } = await supabase.from('tenants').select('*').eq('domain', hostname).maybeSingle();
+    if (!error && t) return t;
   }
-
-  // 3) Query param ?apiKey=...
-  const search = req.nextUrl.searchParams.get("apiKey");
-  if (search) return search.trim();
-
+  const apiCookie = req.cookies.get('client_api_key');
+  if (apiCookie?.value) {
+    const tenant = await getTenantByApiKey(supabase, apiCookie.value);
+    if (tenant) return tenant;
+  }
   return null;
 }
 
 export async function GET(req: NextRequest) {
-  const SUPABASE_URL = process.env.SUPABASE_URL;
-  const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE;
-
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE) {
-    return NextResponse.json(
-      { error: "Supabase env vars not configured." },
-      { status: 500 }
-    );
-  }
-
-  const apiKey = readApiKey(req);
-  if (!apiKey) {
-    return NextResponse.json(
-      {
-        error:
-          "Missing API key. Send it in 'x-api-key' header, 'Authorization: Bearer <key>', or '?apiKey=' query param.",
-      },
-      { status: 401 }
-    );
-  }
-
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-
   try {
-    // 1) Buscar tenant por api_key
-    const tenantRes = await supabase
-      .from("tenants")
-      .select<"id,api_key,is_active">("id,api_key,is_active")
-      .eq("api_key", apiKey)
-      .maybeSingle();
-
-    if (tenantRes.error) throw tenantRes.error;
-
-    const tenant = tenantRes.data as unknown as TenantRow | null;
-    if (!tenant || !tenant.id || tenant.is_active === false) {
-      return NextResponse.json({ error: "Invalid API key." }, { status: 401 });
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE);
+    const tenant = await resolveTenant(req, supabase);
+    if (!tenant) {
+      return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
     }
-
-    // 2) Leer créditos
-    const creditsRes = await supabase
-      .from("tenant_credits")
-      .select<"tenant_id,credits">("tenant_id,credits")
-      .eq("tenant_id", tenant.id)
-      .maybeSingle();
-
-    if (creditsRes.error) throw creditsRes.error;
-
-    const credits = (creditsRes.data as unknown as CreditRow | null)?.credits ?? 0;
-
-    return NextResponse.json(
-      {
-        tenantId: tenant.id,
-        credits,
-      },
-      { headers: { "Cache-Control": "no-store" } }
-    );
+    // read credits from tenants.credits (defaults to 0 or null)
+    const credits = (tenant.credits ?? 0) as number;
+    return NextResponse.json({ credits }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (err: any) {
-    return NextResponse.json(
-      { error: err?.message || "Unexpected server error." },
-      { status: 500 }
-    );
+    console.error('[api/credits] error:', err);
+    return NextResponse.json({ error: err?.message || 'Server error' }, { status: 500 });
   }
 }
