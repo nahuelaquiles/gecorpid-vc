@@ -1,20 +1,27 @@
-'use client';
+"use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 
-// ---------- Utilidades cliente (100% local) ----------
+// -----------------------------------------------------------------------------
+// Client‑side helpers
+// These functions run entirely in the browser. They never upload the
+// document and instead operate on in‑memory ArrayBuffers. Hashing and
+// stamping are performed locally before calling the server to finalise
+// issuance.
+
 async function fileToArrayBuffer(file: File) {
   return await file.arrayBuffer();
 }
+
 async function sha256HexClient(buf: ArrayBuffer): Promise<string> {
   const hash = await crypto.subtle.digest('SHA-256', buf);
   const bytes = Array.from(new Uint8Array(hash));
-  return bytes.map(b => b.toString(16).padStart(2, '0')).join('');
+  return bytes.map((b) => b.toString(16).padStart(2, '0')).join('');
 }
+
 function shortFingerprint(hex: string) {
-  // 4 bytes altos
   return hex.substring(0, 8).toUpperCase();
 }
 
@@ -22,23 +29,20 @@ async function stampPdfWithQr(pdfBytes: ArrayBuffer, qrText: string): Promise<Ui
   const pdfDoc = await PDFDocument.load(pdfBytes);
   const pages = pdfDoc.getPages();
 
-  // Generar PNG del QR
+  // generate QR image
   const qrDataUrl = await QRCode.toDataURL(qrText, { errorCorrectionLevel: 'M', margin: 1, scale: 6 });
-  const pngBytes = Uint8Array.from(atob(qrDataUrl.split(',')[1]), c => c.charCodeAt(0));
+  const pngBytes = Uint8Array.from(atob(qrDataUrl.split(',')[1]), (c) => c.charCodeAt(0));
   const pngImage = await pdfDoc.embedPng(pngBytes);
   const pngDims = pngImage.scale(0.45);
 
-  // Tipografía para títulos
   const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-  // Sello en la primera página (y opcional en todas)
-  pages.forEach((p, idx) => {
+  pages.forEach((p) => {
     const { width, height } = p.getSize();
     const margin = 24;
     const boxW = pngDims.width + 24;
     const boxH = pngDims.height + 54;
-
-    // marco suave
+    // soft box
     p.drawRectangle({
       x: width - boxW - margin,
       y: height - boxH - margin,
@@ -49,8 +53,7 @@ async function stampPdfWithQr(pdfBytes: ArrayBuffer, qrText: string): Promise<Ui
       borderWidth: 1,
       opacity: 0.9,
     });
-
-    // títulos
+    // titles
     p.drawText('Verifiable Digital Credential', {
       x: width - boxW - margin + 12,
       y: height - boxH - margin + boxH - 18,
@@ -65,7 +68,6 @@ async function stampPdfWithQr(pdfBytes: ArrayBuffer, qrText: string): Promise<Ui
       font,
       color: rgb(0.25, 0.28, 0.35),
     });
-
     // QR
     p.drawImage(pngImage, {
       x: width - boxW - margin + 12,
@@ -74,11 +76,10 @@ async function stampPdfWithQr(pdfBytes: ArrayBuffer, qrText: string): Promise<Ui
       height: pngDims.height,
     });
   });
-
   return await pdfDoc.save();
 }
 
-// ---------- Tipos UI ----------
+// Row type for the results table
 type Row = {
   name: string;
   cid?: string;
@@ -87,167 +88,126 @@ type Row = {
   short?: string;
   status: 'pending' | 'stamped' | 'issued' | 'error';
   message?: string;
-  downloadUrl?: string;
   vc_jwt?: string;
 };
 
-export default function ClientAutoIssue() {
+export default function ClientPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [credits, setCredits] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
-  const [apiKeyUI, setApiKeyUI] = useState(''); // solo si hace falta pedirla 1ra vez
-  const [needsKey, setNeedsKey] = useState(false);
 
-  // --------- API KEY desde cookie/localStorage (no UI por defecto) ----------
+  // Fetch remaining credits on mount
   useEffect(() => {
-    // si el server ya dejó cookie, no pedimos nada
-    const cookieHasKey = document.cookie.split('; ').some(c => c.startsWith('client_api_key='));
-    if (cookieHasKey) {
-      setNeedsKey(false);
-      return;
+    async function fetchCredits() {
+      try {
+        const res = await fetch('/api/credits', { cache: 'no-store' });
+        const j = await res.json();
+        if (res.ok) setCredits(j.credits ?? null);
+      } catch {
+        setCredits(null);
+      }
     }
-    // fallback: localStorage de una sesión anterior
-    const k = localStorage.getItem('client_api_key');
-    if (k) {
-      setNeedsKey(false);
-      // set cookie para que el server la use en los proxys
-      document.cookie = `client_api_key=${encodeURIComponent(k)}; Path=/; SameSite=Lax; Max-Age=${60 * 60 * 24 * 365}`;
-    } else {
-      // si no hay nada, mostramos una banda chiquita para cargarla 1 sola vez
-      setNeedsKey(true);
-    }
+    fetchCredits();
   }, []);
 
-  const onSaveKey = useCallback(() => {
-    if (!apiKeyUI.trim()) return;
-    localStorage.setItem('client_api_key', apiKeyUI.trim());
-    document.cookie = `client_api_key=${encodeURIComponent(apiKeyUI.trim())}; Path=/; SameSite=Lax; Max-Age=${60 * 60 * 24 * 365}`;
-    setNeedsKey(false);
-    setApiKeyUI('');
-    void fetchCredits();
-  }, [apiKeyUI]);
-
-  // --------- Proxys server-side con cookie ----------
-  async function proxyIssueRequest(): Promise<{ cid: string; verify_url: string }> {
-    const res = await fetch('/api/client/issue-request', { method: 'POST' });
+  // Issue request proxy: obtains CID and verify URL
+  async function issueRequest(): Promise<{ cid: string; verify_url: string }> {
+    const res = await fetch('/api/issue-request', { method: 'POST' });
     const j = await res.json();
-    if (!res.ok) throw new Error(j.error || 'issue-request failed');
+    if (!res.ok) throw new Error(j.error || 'Failed to create ticket');
     return j;
   }
-  async function proxyIssueFinal(payload: { cid: string; sha256: string; doc_type?: string }): Promise<{ vc_jwt: string }> {
-    const res = await fetch('/api/client/issue-final', {
+  // Issue final: sends CID and local hash to server
+  async function issueFinal(payload: { cid: string; sha256: string; doc_type?: string }): Promise<{ vc_jwt: string }> {
+    const res = await fetch('/api/issue-final', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(payload),
     });
     const j = await res.json();
-    if (!res.ok) throw new Error(j.error || 'issue-final failed');
+    if (!res.ok) throw new Error(j.error || 'Failed to issue credential');
     return j;
   }
-  async function fetchCredits() {
-    try {
-      const res = await fetch('/api/client/credits', { cache: 'no-store' });
-      const j = await res.json();
-      if (res.ok) setCredits(j.credits ?? null);
-    } catch {}
-  }
 
-  useEffect(() => {
-    fetchCredits();
-  }, []);
-
-  // --------- Flujo 1 paso: subir PDFs y listo ----------
   const onPickFiles = useCallback(async (ev: React.ChangeEvent<HTMLInputElement>) => {
     const files = ev.target.files;
     if (!files || files.length === 0) return;
-
     setLoading(true);
-    const nextRows: Row[] = [];
+    const initialRows: Row[] = [];
     for (const file of Array.from(files)) {
-      nextRows.push({ name: file.name, status: 'pending' });
+      initialRows.push({ name: file.name, status: 'pending' });
     }
-    setRows(nextRows);
-
+    setRows(initialRows);
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-
       try {
-        // 1) pedir cid y verify_url
-        const { cid, verify_url } = await proxyIssueRequest();
-
-        // 2) estampar QR local (automático)
+        // 1) obtain CID and verification URL
+        const { cid, verify_url } = await issueRequest();
+        // 2) stamp locally
         const buf = await fileToArrayBuffer(file);
         const stamped = await stampPdfWithQr(buf, verify_url);
-
-        // 3) hash local del PDF con QR
-        const sha256 = await sha256HexClient(stamped.buffer);
-        const short = shortFingerprint(sha256);
-
-        // 4) emitir VC (servidor firma con EdDSA)
-        const { vc_jwt } = await proxyIssueFinal({ cid, sha256, doc_type: 'pdf' });
-
-        // 5) preparar descarga automática
+        // 3) hash locally
+        const hash = await sha256HexClient(stamped.buffer);
+        const short = shortFingerprint(hash);
+        // 4) finalise issuance
+        const { vc_jwt } = await issueFinal({ cid, sha256: hash, doc_type: 'pdf' });
+        // 5) trigger download
         const blob = new Blob([stamped], { type: 'application/pdf' });
         const url = URL.createObjectURL(blob);
         const fname = file.name.replace(/\.pdf$/i, '') + `_VC_${short}.pdf`;
-
-        // dispara descarga
         const a = document.createElement('a');
         a.href = url;
         a.download = fname;
         a.click();
         URL.revokeObjectURL(url);
-
-        // actualizar fila
-        setRows(prev => {
+        // 6) update row
+        setRows((prev) => {
           const copy = [...prev];
           copy[i] = {
             name: file.name,
             cid,
             verifyUrl: verify_url,
-            sha256,
+            sha256: hash,
             short,
             status: 'issued',
-            downloadUrl: '', // ya descargado
             vc_jwt,
           };
           return copy;
         });
       } catch (err: any) {
-        setRows(prev => {
+        setRows((prev) => {
           const copy = [...prev];
-          copy[i] = {
-            name: file.name,
-            status: 'error',
-            message: err?.message || 'Error',
-          };
+          copy[i] = { name: file.name, status: 'error', message: err?.message || 'Error' };
           return copy;
         });
       }
     }
-
     setLoading(false);
-    void fetchCredits();
+    // refresh credits after issuing
+    try {
+      const res = await fetch('/api/credits', { cache: 'no-store' });
+      const j = await res.json();
+      if (res.ok) setCredits(j.credits ?? null);
+    } catch {}
   }, []);
 
-  // ---------- UI ----------
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <header className="sticky top-0 z-10 bg-white/80 backdrop-blur border-b border-slate-200">
-        <div className="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between">
+    <div className="min-h-screen bg-[#f6f7fb] text-neutral-900 flex flex-col">
+      <header className="bg-white/80 backdrop-blur border-b border-neutral-200 py-4 px-4">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img
-              src="https://www.gecorp.com.ar/wp-content/uploads/2021/12/cropped-GECORP-ISOLOGO-2021.png"
-              alt="GECORP"
-              className="h-9 w-9 rounded"
+              src="/gecorpid_logo.png"
+              alt="GecorpID"
+              className="h-8 w-8 rounded"
             />
             <div className="leading-tight">
               <div className="font-semibold">GecorpID • VC</div>
-              <div className="text-xs text-slate-500">Emisión local sin subir PDFs</div>
+              <div className="text-xs text-neutral-500">Local issuance of verifiable PDFs</div>
             </div>
           </div>
-          <div className="text-sm text-slate-600">
-            Créditos:&nbsp;
+          <div className="text-sm text-neutral-600">
+            Credits:&nbsp;
             <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700 border border-emerald-200">
               {credits ?? '—'}
             </span>
@@ -255,105 +215,84 @@ export default function ClientAutoIssue() {
         </div>
       </header>
 
-      {needsKey && (
-        <div className="mx-auto max-w-5xl px-4 mt-4">
-          <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm">
-            <div className="font-medium mb-2">Autorización del laboratorio</div>
-            <p className="mb-3">
-              Esta es la primera vez en este navegador. Ingresá tu API Key del laboratorio para
-              recordarla (no se muestra luego). Se guarda en cookie de este dominio.
+      <main className="flex-1">
+        <div className="max-w-6xl mx-auto px-4 py-10">
+          <div className="rounded-2xl bg-white shadow-soft border border-neutral-200 p-6">
+            <h1 className="text-xl font-semibold mb-4">Issue verifiable credentials for your PDFs</h1>
+            <p className="text-sm text-neutral-600 mb-4">
+              Drop one or more PDF files below. The app will stamp a QR code, compute the SHA-256 hash locally,
+              send the hash to the server to create a verifiable credential, and automatically download the
+              sealed PDF. Your PDFs never leave your computer.
             </p>
-            <div className="flex gap-2">
+
+            <label className="inline-flex items-center gap-2 w-full justify-center rounded-2xl border-2 border-dashed border-neutral-300 bg-neutral-50 hover:bg-neutral-100 px-5 py-10 cursor-pointer">
+              <div className="text-neutral-600 text-center">
+                <div className="font-medium">Click or drag your PDFs here</div>
+                <div className="text-xs">One verifiable credential will be issued per file</div>
+              </div>
               <input
-                value={apiKeyUI}
-                onChange={e => setApiKeyUI(e.target.value)}
-                placeholder="API Key del laboratorio"
-                className="flex-1 rounded-lg border border-slate-300 px-3 py-2"
+                type="file"
+                accept="application/pdf"
+                multiple
+                className="hidden"
+                onChange={onPickFiles}
               />
-              <button
-                className="rounded-lg px-3 py-2 bg-slate-900 text-white hover:bg-slate-800"
-                onClick={onSaveKey}
-              >
-                Guardar
-              </button>
-            </div>
+            </label>
+
+            {loading && <div className="mt-4 text-sm text-neutral-600">Processing…</div>}
+
+            {rows.length > 0 && (
+              <div className="mt-6 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-neutral-500">
+                      <th className="py-2 pr-3">File</th>
+                      <th className="py-2 pr-3">CID</th>
+                      <th className="py-2 pr-3">Hash</th>
+                      <th className="py-2 pr-3">Status</th>
+                      <th className="py-2">Verify</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r, i) => (
+                      <tr key={i} className="border-t border-neutral-200">
+                        <td className="py-2 pr-3 whitespace-nowrap">{r.name}</td>
+                        <td className="py-2 pr-3 text-xs break-all">{r.cid || '—'}</td>
+                        <td className="py-2 pr-3">{r.short || '—'}</td>
+                        <td className="py-2 pr-3">
+                          {r.status === 'pending' && <span className="text-neutral-600">stamping…</span>}
+                          {r.status === 'stamped' && <span className="text-neutral-600">hashing…</span>}
+                          {r.status === 'issued' && <span className="text-emerald-700">issued ✔</span>}
+                          {r.status === 'error' && <span className="text-rose-700">error: {r.message}</span>}
+                        </td>
+                        <td className="py-2">
+                          {r.verifyUrl ? (
+                            <a
+                              href={r.verifyUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sky-700 underline"
+                            >
+                              Open
+                            </a>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="mt-4 text-xs text-neutral-500">
+                  Note: The stamped PDF is downloaded automatically; you can also use the verification link.
+                </div>
+              </div>
+            )}
           </div>
         </div>
-      )}
-
-      <main className="mx-auto max-w-5xl px-4 py-8">
-        <div className="rounded-2xl bg-white shadow-soft border border-slate-200 p-6">
-          <h1 className="text-xl font-semibold mb-4">Emití credenciales subiendo tus PDFs</h1>
-          <p className="text-sm text-slate-600 mb-4">
-            Cargá uno o varios archivos PDF. La plataforma estampa el QR, calcula el SHA-256 localmente,
-            emite la VC y descarga el PDF sellado. El PDF nunca se sube al servidor.
-          </p>
-
-          <label className="inline-flex items-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 px-5 py-10 cursor-pointer">
-            <div className="text-slate-600">
-              <div className="font-medium">Hacé click o arrastrá tus PDF aquí</div>
-              <div className="text-xs">Se emitirá una VC por cada PDF</div>
-            </div>
-            <input
-              type="file"
-              accept="application/pdf"
-              multiple
-              className="hidden"
-              onChange={onPickFiles}
-            />
-          </label>
-
-          {loading && (
-            <div className="mt-4 text-sm text-slate-600">Procesando…</div>
-          )}
-
-          {rows.length > 0 && (
-            <div className="mt-6">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-slate-500">
-                    <th className="py-2">Archivo</th>
-                    <th className="py-2">CID</th>
-                    <th className="py-2">Huella</th>
-                    <th className="py-2">Estado</th>
-                    <th className="py-2">Verificar</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r, i) => (
-                    <tr key={i} className="border-t border-slate-200">
-                      <td className="py-2">{r.name}</td>
-                      <td className="py-2 text-xs">{r.cid || '—'}</td>
-                      <td className="py-2">{r.short || '—'}</td>
-                      <td className="py-2">
-                        {r.status === 'pending' && <span className="text-slate-600">sellando…</span>}
-                        {r.status === 'stamped' && <span className="text-slate-600">hash…</span>}
-                        {r.status === 'issued' && <span className="text-emerald-700">emitida ✔</span>}
-                        {r.status === 'error' && <span className="text-rose-700">error: {r.message}</span>}
-                      </td>
-                      <td className="py-2">
-                        {r.verifyUrl ? (
-                          <a href={r.verifyUrl} target="_blank" className="text-sky-700 underline">
-                            Abrir
-                          </a>
-                        ) : (
-                          '—'
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div className="mt-4 text-xs text-slate-500">
-                Nota: El PDF sellado se descarga automáticamente; también podés usar el link de verificación.
-              </div>
-            </div>
-          )}
-        </div>
       </main>
-
-      <footer className="py-8 text-center text-xs text-slate-500">
-        © {new Date().getFullYear()} GECORP — Powered by GECORP
+      <footer className="py-8 text-center text-xs text-neutral-500">
+        © {new Date().getFullYear()} GecorpID — Powered by GECORP
       </footer>
     </div>
   );
