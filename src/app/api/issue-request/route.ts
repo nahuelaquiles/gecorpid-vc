@@ -1,31 +1,36 @@
-// src/app/api/issue-request/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID, randomBytes } from "node:crypto";
+
+// This route creates an issuance ticket for one or more PDFs. The client
+// subsequently uses the ticket to stamp the document, compute its hash and
+// finalize issuance via /api/issue-final. Each call consumes no credits; only
+// finalization does.
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE!;
-const FALLBACK_SITE = (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, "");
 const DEFAULT_TENANT_ID = process.env.DEFAULT_TENANT_ID || null;
+// Base site URL used for verification QR codes. Must not include a trailing slash.
+const PUBLIC_SITE = (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, "");
 
 function hostFrom(req: NextRequest) {
   const h = req.headers.get("x-forwarded-host") || req.headers.get("host") || "";
   return h.split(",")[0].trim().toLowerCase().replace(/:\d+$/, "");
 }
 
-/** Single-tenant friendly resolver:
- *  1) DEFAULT_TENANT_ID (si está seteado)
- *  2) Primer tenant activo (y si existe columna domain y coincide con host, mejor)
+/**
+ * Resolve the current tenant from the request. If DEFAULT_TENANT_ID is set we
+ * prefer it, otherwise choose the first active tenant optionally matching the
+ * host domain.
  */
 async function resolveTenant(supabase: any, req: NextRequest) {
   if (DEFAULT_TENANT_ID) {
     const r = await supabase.from("tenants").select("*").eq("id", DEFAULT_TENANT_ID).maybeSingle();
     if (r.data) return r.data;
   }
-  // Traigo algunos activos y busco coincidencia por host si hubiera columna domain
   const list = await supabase
     .from("tenants")
     .select("*")
@@ -58,8 +63,10 @@ export async function POST(req: NextRequest) {
     });
     if (error) throw error;
 
-    const origin = FALLBACK_SITE || req.nextUrl.origin;
-    const verify_url = `${origin}/v/${cid}`;
+    // Always build the verify URL against the public site. Never use the client
+    // portal host here, otherwise PDFs would point back to an internal URL.
+    const base = PUBLIC_SITE || req.nextUrl.origin.replace(/\/$/, "");
+    const verify_url = `${base}/v/${cid}`;
 
     return NextResponse.json({ cid, verify_url, nonce }, { status: 200 });
   } catch (e: any) {
