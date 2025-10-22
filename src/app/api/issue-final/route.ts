@@ -1,7 +1,9 @@
-// src/app/api/issue-final/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { importJWK, JWK, KeyLike, SignJWT } from "jose";
+
+// This route finalizes an issuance request by validating the ticket,
+// consuming a credit, signing the VC as a JWT and storing the credential.
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,10 +21,12 @@ function hostFrom(req: NextRequest) {
 }
 
 async function resolveTenant(supabase: any, req: NextRequest) {
+  // Prefer the configured default tenant if defined
   if (DEFAULT_TENANT_ID) {
     const r = await supabase.from("tenants").select("*").eq("id", DEFAULT_TENANT_ID).maybeSingle();
     if (r.data) return r.data;
   }
+  // Otherwise pick the first active tenant matching the host or the first active tenant
   const list = await supabase
     .from("tenants")
     .select("*")
@@ -54,7 +58,7 @@ export async function POST(req: NextRequest) {
     const doc_type: string | undefined = body?.doc_type ?? "pdf";
     if (!cid || !sha256) return NextResponse.json({ error: "cid and sha256 are required" }, { status: 400 });
 
-    // Validar ticket
+    // Validate issuance ticket
     const tk = await supabase.from("issue_tickets").select("*").eq("cid", cid).maybeSingle();
     if (tk.error) throw tk.error;
     const ticket = tk.data;
@@ -65,23 +69,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Ticket expired" }, { status: 410 });
     }
 
-    // Créditos: RPC si existe; si no, decremento en tenant_credits
-    try {
-      await supabase.rpc("spend_credit", { tenant_id: tenant.id });
-    } catch {
-      const cur = await supabase
-        .from("tenant_credits")
-        .select("credits")
-        .eq("tenant_id", tenant.id)
-        .maybeSingle();
-      const value = Math.max(0, (cur.data?.credits ?? 0) - 1);
-      await supabase.from("tenant_credits").update({ credits: value }).eq("tenant_id", tenant.id);
+    // Consume a credit: try the RPC first; if missing or returns an error, fall back to manual update.
+    {
+      const { error: creditError } = await supabase.rpc("spend_credit", { tenant_id: tenant.id });
+      if (creditError) {
+        // fetch current credits and decrement
+        const { data: creditRow, error: creditFetchError } = await supabase
+          .from("tenant_credits")
+          .select("credits")
+          .eq("tenant_id", tenant.id)
+          .maybeSingle();
+        if (creditFetchError) throw creditFetchError;
+        const newValue = Math.max(0, ((creditRow?.credits as number | null) ?? 0) - 1);
+        const { error: updateError } = await supabase
+          .from("tenant_credits")
+          .update({ credits: newValue })
+          .eq("tenant_id", tenant.id);
+        if (updateError) throw updateError;
+      }
     }
 
-    // Firmar VC
+    // Sign the Verifiable Credential as a JWT using EdDSA
     const key = await importPrivateEd25519(PRIVATE_JWK);
     const now = Math.floor(Date.now() / 1000);
-    const exp = now + 60 * 60 * 24 * 365;
+    const exp = now + 60 * 60 * 24 * 365; // 1 year expiry
     const payload: Record<string, any> = {
       iss: ISSUER_DID,
       sub: cid,
@@ -106,7 +117,7 @@ export async function POST(req: NextRequest) {
       .setExpirationTime(exp)
       .sign(key);
 
-    // Guardar y cerrar ticket
+    // Save the credential and mark the ticket as used
     const ins = await supabase.from("credentials").insert({
       tenant_id: tenant.id,
       cid,
@@ -117,7 +128,6 @@ export async function POST(req: NextRequest) {
       doc_type,
     });
     if (ins.error) throw ins.error;
-
     const upd = await supabase.from("issue_tickets").update({ used: true, sha256 }).eq("cid", cid);
     if (upd.error) throw upd.error;
 
