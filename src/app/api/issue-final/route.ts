@@ -11,26 +11,31 @@ const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE!;
 const ISSUER_DID = process.env.NEXT_PUBLIC_ISSUER_DID!;
 const PRIVATE_JWK = process.env.ISSUER_PRIVATE_JWK!;
 const JWK_KID = process.env.JWK_KID || undefined;
+const DEFAULT_TENANT_ID = process.env.DEFAULT_TENANT_ID || null;
 
 function hostFrom(req: NextRequest) {
   const h = req.headers.get("x-forwarded-host") || req.headers.get("host") || "";
   return h.split(",")[0].trim().toLowerCase().replace(/:\d+$/, "");
 }
-async function resolveTenantByHost(supabase: any, req: NextRequest) {
-  const domain = hostFrom(req);
-  if (!domain) return null;
-  const { data } = await supabase.from("tenants").select("*").eq("domain", domain).maybeSingle();
-  if (data) return data;
-  const cookieVal = req.cookies.get("tenant_id")?.value || req.cookies.get("tenant_domain")?.value;
-  if (cookieVal) {
-    const r = await supabase.from("tenants")
-      .select("*")
-      .or(`id.eq.${cookieVal},domain.eq.${cookieVal}`)
-      .maybeSingle();
-    return r.data || null;
+
+async function resolveTenant(supabase: any, req: NextRequest) {
+  if (DEFAULT_TENANT_ID) {
+    const r = await supabase.from("tenants").select("*").eq("id", DEFAULT_TENANT_ID).maybeSingle();
+    if (r.data) return r.data;
   }
-  return null;
+  const list = await supabase
+    .from("tenants")
+    .select("*")
+    .eq("is_active", true)
+    .order("created_at", { ascending: true })
+    .limit(10);
+  if (list.error) throw list.error;
+  const rows: any[] = list.data || [];
+  const host = hostFrom(req);
+  const match = rows.find((t) => typeof t.domain === "string" && t.domain?.toLowerCase() === host);
+  return match || rows[0] || null;
 }
+
 async function importPrivateEd25519(jwkJson: string): Promise<KeyLike> {
   if (!jwkJson) throw new Error("ISSUER_PRIVATE_JWK env is missing");
   const jwk = JSON.parse(jwkJson) as JWK;
@@ -40,8 +45,8 @@ async function importPrivateEd25519(jwkJson: string): Promise<KeyLike> {
 export async function POST(req: NextRequest) {
   try {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE);
-    const tenant = await resolveTenantByHost(supabase, req);
-    if (!tenant) return NextResponse.json({ error: "Tenant not found for host." }, { status: 401 });
+    const tenant = await resolveTenant(supabase, req);
+    if (!tenant) return NextResponse.json({ error: "Tenant not found (no active tenants)" }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
     const cid: string | undefined = body?.cid;
@@ -49,7 +54,7 @@ export async function POST(req: NextRequest) {
     const doc_type: string | undefined = body?.doc_type ?? "pdf";
     if (!cid || !sha256) return NextResponse.json({ error: "cid and sha256 are required" }, { status: 400 });
 
-    // Validate ticket
+    // Validar ticket
     const tk = await supabase.from("issue_tickets").select("*").eq("cid", cid).maybeSingle();
     if (tk.error) throw tk.error;
     const ticket = tk.data;
@@ -60,10 +65,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Ticket expired" }, { status: 410 });
     }
 
-    // Spend credit if RPC exists
-    try { await supabase.rpc("spend_credit", { tenant_id: tenant.id }); } catch {}
+    // Créditos: RPC si existe; si no, decremento en tenant_credits
+    try {
+      await supabase.rpc("spend_credit", { tenant_id: tenant.id });
+    } catch {
+      const cur = await supabase
+        .from("tenant_credits")
+        .select("credits")
+        .eq("tenant_id", tenant.id)
+        .maybeSingle();
+      const value = Math.max(0, (cur.data?.credits ?? 0) - 1);
+      await supabase.from("tenant_credits").update({ credits: value }).eq("tenant_id", tenant.id);
+    }
 
-    // Sign VC
+    // Firmar VC
     const key = await importPrivateEd25519(PRIVATE_JWK);
     const now = Math.floor(Date.now() / 1000);
     const exp = now + 60 * 60 * 24 * 365;
@@ -85,10 +100,13 @@ export async function POST(req: NextRequest) {
 
     const jwt = await new SignJWT(payload)
       .setProtectedHeader({ alg: "EdDSA", ...(JWK_KID ? { kid: JWK_KID } : {}) })
-      .setIssuer(ISSUER_DID).setSubject(cid).setIssuedAt(now).setExpirationTime(exp)
+      .setIssuer(ISSUER_DID)
+      .setSubject(cid)
+      .setIssuedAt(now)
+      .setExpirationTime(exp)
       .sign(key);
 
-    // Store credential + mark ticket used
+    // Guardar y cerrar ticket
     const ins = await supabase.from("credentials").insert({
       tenant_id: tenant.id,
       cid,
