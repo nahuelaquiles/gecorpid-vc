@@ -23,7 +23,6 @@ type HistoryRow = {
   issued_at: string | number | null;
   revoked_at?: string | number | null;
   doc_type?: string | null;
-  // If your API ever sends a filename, we’ll use it; if not, we read localStorage.
   doc_filename?: string | null;
 };
 
@@ -59,7 +58,7 @@ function saveNameMap(map: Record<string, string>) {
   }
 }
 
-/** ---------- API calls (kept as in your patch) ---------- */
+/** ---------- API calls ---------- */
 
 async function callIssueRequest() {
   const res = await fetch("/api/issue-request", { method: "POST" });
@@ -99,7 +98,6 @@ async function fetchHistoryApi() {
   const ct = res.headers.get("content-type") || "";
   const data = ct.includes("application/json") ? await res.json() : { error: await res.text() };
   if (!res.ok) return [];
-  // allow either `data.history` or bare array
   const body = data as any;
   return (Array.isArray(body) ? body : body.history) ?? [];
 }
@@ -108,26 +106,22 @@ async function fetchHistoryApi() {
 
 /**
  * Stamps a compact QR badge (bottom-right) on every page.
- * - Subtle rounded plate, small margin to the edges, no vendor text.
- * - Returns stamped bytes (Uint8Array).
+ * Subtle plate, small margin, no vendor text.
  */
 async function stampPdfWithQrBadge(originalBytes: ArrayBuffer, verifyUrl: string): Promise<Uint8Array> {
-  // Lazy-load to avoid SSR/bundle issues
   const { PDFDocument, rgb } = await import("pdf-lib");
   const qrMod: any = await import("qrcode");
   const QRCode = qrMod?.default ?? qrMod;
 
   const pdf = await PDFDocument.load(originalBytes);
 
-  // Generate QR as PNG bytes from DataURL
   const dataUrl: string = await QRCode.toDataURL(verifyUrl, { errorCorrectionLevel: "M", margin: 0, scale: 6 });
   const b64 = dataUrl.split(",")[1] ?? "";
   const pngBytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
   const png = await pdf.embedPng(pngBytes);
 
-  // Scale down to ~88px square
   const maxSide = Math.max(png.width, png.height);
-  const target = 88;
+  const target = 88; // ~88px square
   const scale = target / maxSide;
   const dims = png.scale(scale);
 
@@ -139,7 +133,6 @@ async function stampPdfWithQrBadge(originalBytes: ArrayBuffer, verifyUrl: string
     const x = width - dims.width - inset;
     const y = inset;
 
-    // Soft plate (subtle, not covering content too much)
     page.drawRectangle({
       x: x - pad,
       y: y - pad,
@@ -209,7 +202,6 @@ export default function ClientPage() {
       setLoading(true);
       setAuthError(null);
 
-      // optimistic row
       setRows((prev) => [
         { name: file.name, status: "pending", message: "Preparing issue request…" },
         ...prev,
@@ -229,7 +221,7 @@ export default function ClientPage() {
         const sha = await sha256Hex(stampedBytes);
         const code = shortHash(sha);
 
-        // 4) Finalize issuance (server stores hash, decrements credits)
+        // 4) Finalize issuance
         setRows((prev) => [{ ...prev[0], message: "Finalizing issuance…" }, ...prev.slice(1)]);
         await callIssueFinal({ cid, sha256: sha, doc_type: "pdf" });
 
@@ -274,48 +266,58 @@ export default function ClientPage() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="relative min-h-screen overflow-hidden bg-slate-950 text-slate-100">
+      <div
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(130%_140%_at_15%_10%,rgba(56,189,248,0.16),transparent_55%),radial-gradient(120%_120%_at_85%_-10%,rgba(165,180,252,0.14),transparent_60%),linear-gradient(180deg,#020617,rgba(2,6,23,0.92))]"
+        aria-hidden
+      />
+
       {/* Header / Hero */}
-      <header className="relative overflow-hidden border-b border-slate-200 bg-white">
-        <div className="absolute inset-0 bg-gradient-to-r from-sky-50 via-white to-transparent" />
-        <div className="relative mx-auto flex max-w-6xl flex-col gap-8 px-6 py-12 lg:flex-row lg:items-center lg:justify-between">
-          <div className="max-w-2xl space-y-4">
-            <span className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.28em] text-sky-600">
+      <header className="relative mx-auto max-w-6xl px-6 pb-16 pt-20">
+        <div className="grid gap-10 rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl shadow-black/40 backdrop-blur-lg lg:grid-cols-[1.4fr_1fr] lg:gap-12">
+          <div className="max-w-2xl space-y-6">
+            <div className="inline-flex items-center gap-2 rounded-full border border-sky-400/40 bg-sky-500/10 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-200">
               Issuer workspace
-            </span>
-            <h1 className="text-4xl font-semibold tracking-tight text-slate-900">Issue verifiable PDFs</h1>
-            <p className="text-base text-slate-600">
-              We never upload your PDF. A small QR is stamped bottom-right. The browser computes the SHA-256 of the stamped
-              file locally and the credential is registered server-side.
-            </p>
-            <div className="flex flex-wrap items-center gap-3 text-sm text-slate-600">
-              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 font-medium text-slate-700">
-                <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" aria-hidden />
+            </div>
+            <div className="space-y-4">
+              <h1 className="text-4xl font-semibold tracking-tight text-white md:text-5xl">
+                Issue verifiable PDFs in minutes
+              </h1>
+              <p className="text-base text-slate-200/90">
+                Drop a PDF to mint a sealed copy with a discreet QR badge. Hashing happens in the browser, so the original never leaves your device. The credential registry is updated instantly.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3 text-sm text-slate-300">
+              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/40 bg-emerald-500/10 px-3 py-1 font-medium text-emerald-200">
+                <span className="inline-block h-2 w-2 rounded-full bg-emerald-300" aria-hidden />
                 {creditsLabel}
               </div>
+              <a
+                href="/v"
+                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-xs font-semibold text-slate-100 transition hover:border-white/20 hover:bg-white/20"
+              >
+                Open verifier portal
+                <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
+                  <path d="M6.75 3.5a.75.75 0 0 0 0 1.5h2.69L3.22 11.22a.75.75 0 1 0 1.06 1.06l6.22-6.22v2.69a.75.75 0 0 0 1.5 0V3.5a.75.75 0 0 0-.75-.75h-4.5z" />
+                </svg>
+              </a>
             </div>
           </div>
 
-          <div className="grid gap-3 rounded-2xl border border-slate-200 bg-white/80 p-6 text-sm text-slate-600 shadow-xl shadow-slate-200/60">
-            <h2 className="text-lg font-semibold text-slate-800">How it works</h2>
-            <ul className="grid gap-2">
+          <div className="grid gap-3 rounded-2xl border border-white/10 bg-slate-900/60 p-6 text-sm text-slate-200">
+            <h2 className="text-lg font-semibold text-white">How it works</h2>
+            <ul className="grid gap-3">
               <li className="flex items-start gap-3">
-                <span className="mt-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-sky-500 text-xs font-semibold text-white">
-                  1
-                </span>
+                <span className="mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-sky-500 text-xs font-semibold text-white">1</span>
                 Drop or pick a PDF to generate a sealed copy with a verification QR.
               </li>
               <li className="flex items-start gap-3">
-                <span className="mt-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-sky-500 text-xs font-semibold text-white">
-                  2
-                </span>
-                We compute the SHA-256 hash of the stamped PDF locally and register the credential.
+                <span className="mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-sky-500 text-xs font-semibold text-white">2</span>
+                The browser computes the SHA-256 hash of the sealed PDF and registers the credential.
               </li>
               <li className="flex items-start gap-3">
-                <span className="mt-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-sky-500 text-xs font-semibold text-white">
-                  3
-                </span>
-                You receive the stamped file instantly. Anyone can verify it via the QR.
+                <span className="mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-sky-500 text-xs font-semibold text-white">3</span>
+                We auto-download the stamped file so you can forward it while the verifier page goes live.
               </li>
             </ul>
           </div>
@@ -323,28 +325,27 @@ export default function ClientPage() {
       </header>
 
       {/* Main */}
-      <main className="mx-auto flex max-w-6xl flex-col gap-12 px-6 py-12">
+      <main className="relative mx-auto flex max-w-6xl flex-col gap-12 px-6 pb-20">
         {/* Uploader / Issuance */}
-        <section className="grid gap-6 rounded-3xl border border-slate-200 bg-white/90 p-8 shadow-2xl shadow-slate-200/70 lg:grid-cols-[1.4fr_1fr]">
+        <section className="grid gap-8 rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl shadow-black/40 backdrop-blur lg:grid-cols-[1.45fr_1fr]">
           <div>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-2xl font-semibold text-slate-900">Upload and seal</h2>
-                <p className="text-sm text-slate-600">
-                  Drag a PDF into this panel or click to browse. We stamp each page with a discreet QR at the bottom-right.
+              <div className="space-y-1.5">
+                <h2 className="text-2xl font-semibold text-white">Upload and seal</h2>
+                <p className="text-sm text-slate-200/80">
+                  Drag a PDF into this panel or click to browse. Every page receives a subtle QR badge anchored to the bottom-right margin.
                 </p>
               </div>
-              <div className="text-xs text-slate-500">
-                Supported format: <span className="font-medium text-slate-700">PDF</span>
+              <div className="text-[11px] uppercase tracking-[0.24em] text-slate-400">
+                Format: <span className="font-semibold text-slate-200">PDF</span>
               </div>
             </div>
 
-            <div
-              className={`mt-6 flex min-height-[220px] min-h-[220px] flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 py-12 text-center transition ${
-                dragActive
-                  ? "border-sky-400 bg-sky-50"
-                  : "border-slate-200 bg-slate-50 hover:border-sky-200 hover:bg-sky-50/60"
-              }`}
+            <label
+              htmlFor="client-pdf-upload"
+              className={`${
+                dragActive ? "border-sky-300/70 bg-sky-500/10" : "border-white/15 bg-slate-900/40 hover:border-sky-400/60 hover:bg-slate-900/60"
+              } mt-8 flex min-h=[220px] min-h-[220px] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 py-12 text-center text-sm text-slate-300 transition`}
               onDragOver={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -356,78 +357,80 @@ export default function ClientPage() {
                 setDragActive(false);
               }}
               onDrop={onDrop}
-              onClick={() => fileInputRef.current?.click()}
-              role="button"
-              aria-label="Upload PDF"
-              title="Click to browse or drag & drop a PDF"
             >
-              <div className="pointer-events-none flex flex-col items-center gap-4 text-slate-600">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-white text-sky-500">
-                  <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <div className="pointer-events-none flex flex-col items-center gap-4">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full border border-white/15 bg-white/10 text-sky-300">
+                  <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
                     <path d="M12 5v14" strokeLinecap="round" />
                     <path d="M5 12h14" strokeLinecap="round" />
                     <rect x="3" y="3" width="18" height="18" rx="4" />
                   </svg>
                 </div>
-                <div className="text-lg font-semibold text-slate-800">Drop a PDF to start</div>
-                <p className="text-sm text-slate-500">We never upload or store your documents.</p>
+                <div className="text-lg font-semibold text-white">Drop a PDF to start</div>
+                <p className="text-sm text-slate-300/80">We never upload or store your documents; hashing stays on this device.</p>
               </div>
               <input
+                id="client-pdf-upload"
                 ref={fileInputRef}
                 type="file"
                 accept="application/pdf"
                 className="hidden"
                 onChange={(e) => handleFiles(e.target.files)}
               />
-            </div>
+            </label>
 
-            <div className="mt-6 space-y-4">
-              {loading && <div className="text-sm text-slate-500">Processing document…</div>}
-              {authError && <div className="text-sm text-rose-600">{authError}</div>}
+            <div className="mt-6 space-y-4 text-sm text-slate-200/90">
+              {loading && (
+                <div className="flex items-center gap-2 text-slate-300">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-sky-300" aria-hidden />
+                  Processing document…
+                </div>
+              )}
+              {authError && <div className="rounded-xl border border-rose-400/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">{authError}</div>}
               {rows.map((row, index) => (
                 <article
                   key={`${row.name}-${index}`}
-                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/60"
+                  className="rounded-2xl border border-white/10 bg-slate-900/60 p-5 shadow-inner shadow-black/20"
                 >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="space-y-1">
-                      <div className="text-sm font-semibold text-slate-800">{row.name}</div>
+                      <div className="text-sm font-semibold text-white">{row.name}</div>
                       {row.short && (
-                        <div className="text-xs text-slate-500">
-                          Issuance code <span className="font-mono text-slate-700">{row.short}</span>
+                        <div className="text-xs text-slate-300/90">
+                          Issuance code <span className="font-mono text-sky-200">{row.short}</span>
                         </div>
                       )}
                     </div>
                     <div>
                       {row.status === "pending" && (
-                        <span className="inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-100/80 px-3 py-1 text-xs font-medium text-amber-800">
-                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-500" aria-hidden />
+                        <span className="inline-flex items-center gap-2 rounded-full border border-amber-400/50 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-200">
+                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-300" aria-hidden />
                           In progress
                         </span>
                       )}
                       {row.status === "issued" && (
-                        <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-emerald-100/80 px-3 py-1 text-xs font-medium text-emerald-800">
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
+                        <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/50 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-200">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" aria-hidden />
                           Issued
                         </span>
                       )}
                       {row.status === "error" && (
-                        <span className="inline-flex items-center gap-2 rounded-full border border-rose-300 bg-rose-100 px-3 py-1 text-xs font-medium text-rose-800">
-                          <span className="h-1.5 w-1.5 rounded-full bg-rose-500" aria-hidden />
+                        <span className="inline-flex items-center gap-2 rounded-full border border-rose-400/60 bg-rose-500/10 px-3 py-1 text-xs font-medium text-rose-200">
+                          <span className="h-1.5 w-1.5 rounded-full bg-rose-300" aria-hidden />
                           Failed
                         </span>
                       )}
                     </div>
                   </div>
-                  {row.message && <p className="mt-3 text-xs text-slate-500">{row.message}</p>}
+                  {row.message && <p className="mt-3 text-xs text-slate-300/80">{row.message}</p>}
                   {row.verifyUrl && (
-                    <div className="mt-3 text-xs text-slate-500">
+                    <div className="mt-3 text-xs text-slate-300/80">
                       Verifier link:{" "}
                       <a
                         href={row.verifyUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="font-medium text-sky-600 hover:text-sky-700"
+                        className="font-semibold text-sky-200 hover:text-sky-100"
                       >
                         {row.verifyUrl}
                       </a>
@@ -438,60 +441,56 @@ export default function ClientPage() {
             </div>
           </div>
 
-          <aside className="flex flex-col gap-6 rounded-2xl border border-slate-200 bg-slate-50/80 p-6 text-sm text-slate-600">
-            <div>
-              <h3 className="text-lg font-semibold text-slate-900">Why the verifier may ask for your PDF</h3>
-              <p className="mt-2">
-                The QR encodes a link to the verification page. There, the browser can hash your PDF locally and compare
-                it with the registered digest. Nothing is uploaded; the prompt exists only to compute the hash on your device.
+          <aside className="flex flex-col gap-6 rounded-2xl border border-white/10 bg-slate-900/60 p-6 text-sm text-slate-200">
+            <div className="space-y-2">
+              <h3 className="text-lg font-semibold text-white">Why the verifier may ask for your PDF</h3>
+              <p className="text-slate-300/85">
+                The QR contains only a link to the verifier. When you load the PDF here, hashing happens locally so the browser can prove the contents match what you issued without transmitting the document.
               </p>
             </div>
-            <div>
-              <h3 className="text-lg font-semibold text-slate-900">Best practices</h3>
-              <ul className="mt-2 space-y-2">
-                <li className="flex gap-2">
-                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-sky-500" aria-hidden />
-                  Keep the sealed copy you send; the verifier highlights mismatches instantly.
+            <div className="space-y-2">
+              <h3 className="text-lg font-semibold text-white">Best practices</h3>
+              <ul className="space-y-2 text-slate-300/85">
+                <li className="flex gap-3">
+                  <span className="mt-1 inline-flex h-1.5 w-1.5 rounded-full bg-sky-300" aria-hidden />
+                  Keep the sealed copy you deliver. The verifier highlights mismatches instantly.
                 </li>
-                <li className="flex gap-2">
-                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-sky-500" aria-hidden />
-                  If you revoke a credential, the verifier page will show the revoked status in real time.
+                <li className="flex gap-3">
+                  <span className="mt-1 inline-flex h-1.5 w-1.5 rounded-full bg-sky-300" aria-hidden />
+                  Revoked credentials show their status in real time on the verifier page.
                 </li>
-                <li className="flex gap-2">
-                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-sky-500" aria-hidden />
-                  We store filenames only in your browser for privacy.
+                <li className="flex gap-3">
+                  <span className="mt-1 inline-flex h-1.5 w-1.5 rounded-full bg-sky-300" aria-hidden />
+                  Filenames stay in this browser only. We never persist them server-side.
                 </li>
               </ul>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-xs text-slate-300/85">
+              <div className="font-semibold uppercase tracking-[0.24em] text-slate-400">Need a reminder?</div>
+              <p className="mt-2">
+                Share the verifier link with recipients. They can upload the sealed PDF or scan the QR to confirm authenticity without contacting your team.
+              </p>
             </div>
           </aside>
         </section>
 
         {/* Issued history */}
-        <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-2xl shadow-slate-200/70">
+        <section className="rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl shadow-black/40 backdrop-blur">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h2 className="text-2xl font-semibold text-slate-900">Issued credentials</h2>
-              <p className="text-sm text-slate-600">Filenames are remembered locally per credential ID.</p>
+              <h2 className="text-2xl font-semibold text-white">Issued credentials</h2>
+              <p className="text-sm text-slate-300/85">Filenames are remembered locally per credential ID.</p>
             </div>
-            <a
-              href="/v"
-              className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-xs font-medium text-sky-700 transition hover:border-sky-300 hover:bg-sky-100"
-            >
-              Open verifier portal
-              <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor">
-                <path d="M6.75 3.5a.75.75 0 0 0 0 1.5h2.69L3.22 11.22a.75.75 0 1 0 1.06 1.06l6.22-6.22v2.69a.75.75 0 0 0 1.5 0V3.5a.75.75 0 0 0-.75-.75h-4.5z" />
-              </svg>
-            </a>
           </div>
 
           {history.length === 0 ? (
-            <div className="mt-6 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500">
+            <div className="mt-6 rounded-2xl border border-white/10 bg-slate-900/60 px-6 py-10 text-center text-sm text-slate-300">
               No credentials issued yet. Once you stamp a PDF, it appears here with status and verifier link.
             </div>
           ) : (
-            <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200">
-              <table className="w-full min-w-full text-sm">
-                <thead className="bg-slate-50 text-left text-slate-500">
+            <div className="mt-6 overflow-hidden rounded-2xl border border-white/10">
+              <table className="w-full min-w-full text-sm text-slate-200/90">
+                <thead className="bg-white/5 text-left text-xs uppercase tracking-[0.18em] text-slate-400">
                   <tr>
                     <th className="px-4 py-3 font-medium">Issued</th>
                     <th className="px-4 py-3 font-medium">Document</th>
@@ -508,24 +507,24 @@ export default function ClientPage() {
                       r.doc_filename || (r.cid && nameMap[r.cid]) || "(local name unavailable)";
 
                     return (
-                      <tr key={i} className="border-t border-slate-100 text-slate-700">
-                        <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-600">{date}</td>
+                      <tr key={i} className="border-t border-white/10 text-slate-200/90">
+                        <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300/85">{date}</td>
                         <td className="px-4 py-3">
-                          <div className="font-medium text-slate-800">{localName}</div>
+                          <div className="font-medium text-white">{localName}</div>
                           <div className="text-[11px] text-slate-400">CID: {r.cid}</div>
                         </td>
-                        <td className="px-4 py-3 font-mono text-xs text-slate-500">{code}</td>
+                        <td className="px-4 py-3 font-mono text-xs text-sky-200">{code}</td>
                         <td className="px-4 py-3">
                           {r.status === "active" ? (
-                            <span className="rounded-full border border-emerald-300 bg-emerald-100/90 px-3 py-1 text-xs font-medium text-emerald-700">
+                            <span className="rounded-full border border-emerald-400/60 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-200">
                               Active
                             </span>
                           ) : r.status === "revoked" ? (
-                            <span className="rounded-full border border-rose-300 bg-rose-100/90 px-3 py-1 text-xs font-medium text-rose-700">
+                            <span className="rounded-full border border-rose-400/60 bg-rose-500/10 px-3 py-1 text-xs font-medium text-rose-200">
                               Revoked
                             </span>
                           ) : (
-                            <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs text-slate-600">
+                            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-200/85">
                               {r.status}
                             </span>
                           )}
@@ -535,10 +534,10 @@ export default function ClientPage() {
                             href={`/v/${r.cid}`}
                             target="_blank"
                             rel="noreferrer"
-                            className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700 transition hover:border-sky-300 hover:bg-sky-100"
+                            className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-sky-200 transition hover:border-white/25 hover:bg-white/20"
                           >
                             Open
-                            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor">
+                            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
                               <path d="M6.75 3.5a.75.75 0 0 0 0 1.5h2.69L3.22 11.22a.75.75 0 1 0 1.06 1.06l6.22-6.22v2.69a.75.75 0 0 0 1.5 0V3.5a.75.75 0 0 0-.75-.75h-4.5z" />
                             </svg>
                           </a>
