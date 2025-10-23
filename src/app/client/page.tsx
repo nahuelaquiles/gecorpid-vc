@@ -7,14 +7,14 @@ import CopyButton from "@/components/ui/CopyButton";
 
 type HistoryItem = {
   cid: string;
-  sha256: string;
-  status: "active" | "revoked" | string;
-  issued_at: string; // ISO
+  sha256?: string;
+  status?: "active" | "revoked" | string;
+  issued_at?: string; // ISO
   doc_type?: string | null;
 };
 
 const LS_KEY = "gecorpid-filenames";
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL;
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? ""; // never crashes if missing
 
 function hex(buf: ArrayBuffer) {
   const v = new Uint8Array(buf);
@@ -26,18 +26,21 @@ async function sha256(arrayBuffer: ArrayBuffer) {
   return hex(h);
 }
 
-function loadNameMap(): Record<string, string> {
+function safeParse<T = unknown>(raw: string | null, fallback: T): T {
   try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return {};
-    return JSON.parse(raw);
+    return raw ? (JSON.parse(raw) as T) : fallback;
   } catch {
-    return {};
+    return fallback;
   }
 }
-
+function loadNameMap(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  return safeParse(localStorage.getItem(LS_KEY), {});
+}
 function saveNameMap(map: Record<string, string>) {
-  localStorage.setItem(LS_KEY, JSON.stringify(map));
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(map));
+  } catch {}
 }
 
 export default function ClientPage() {
@@ -46,6 +49,20 @@ export default function ClientPage() {
   const [nameMap, setNameMap] = useState<Record<string, string>>({});
   const [issuing, setIssuing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [diag, setDiag] = useState<string | null>(null); // inline diagnostics instead of hard crash
+
+  // Catch unhandled errors/rejections and render them, not the white screen
+  useEffect(() => {
+    const onErr = (e: ErrorEvent) => setDiag(`Error: ${e.message}`);
+    const onRej = (e: PromiseRejectionEvent) =>
+      setDiag(`Promise rejection: ${e.reason?.message || String(e.reason)}`);
+    window.addEventListener("error", onErr);
+    window.addEventListener("unhandledrejection", onRej);
+    return () => {
+      window.removeEventListener("error", onErr);
+      window.removeEventListener("unhandledrejection", onRej);
+    };
+  }, []);
 
   useEffect(() => {
     setNameMap(loadNameMap());
@@ -55,32 +72,47 @@ export default function ClientPage() {
     (async () => {
       try {
         const res = await fetch("/api/history", { cache: "no-store" });
-        if (!res.ok) return;
-        const data = (await res.json()) as HistoryItem[];
-        setHistory(data || []);
-      } catch {}
+        if (!res.ok) return; // don’t crash page if 401/500/empty
+        const ct = res.headers.get("content-type") || "";
+        if (!ct.includes("application/json")) return; // guard against HTML
+        const data = (await res.json()) as HistoryItem[] | { data?: HistoryItem[] };
+        const arr = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+        setHistory(arr.filter(Boolean));
+      } catch (e: any) {
+        // swallow – show inline diag only
+        setDiag(`History fetch error: ${e?.message || e}`);
+      }
     })();
   }, [issuing]);
 
   const mappedHistory = useMemo(() => {
-    return history.map((row) => {
-      const filename = nameMap[row.cid] || "(local name unavailable)";
-      const short = (row.sha256 || "").slice(0, 8);
-      return { ...row, filename, short };
-    });
+    try {
+      return history.map((row) => {
+        const filename = nameMap[row.cid!] || "(local name unavailable)";
+        const short = (row.sha256 || "").slice(0, 8);
+        return {
+          ...row,
+          filename,
+          short,
+        };
+      });
+    } catch (e: any) {
+      setDiag(`History map error: ${e?.message || e}`);
+      return [];
+    }
   }, [history, nameMap]);
 
   async function handleIssue() {
     if (!file) return;
     setIssuing(true);
     setMessage(null);
+    setDiag(null);
 
     try {
-      // Lazy-load libraries only when needed (prevents client load errors)
+      // Lazy-load heavy libs only when needed
       const pdfLib: any = await import("pdf-lib");
       const qrMod: any = await import("qrcode");
       const QRCode = qrMod?.default ?? qrMod;
-
       const { PDFDocument, rgb, StandardFonts } = pdfLib;
 
       const generateQRDataUrl = async (url: string): Promise<string> => {
@@ -108,10 +140,9 @@ export default function ClientPage() {
         const fontSize = 8.5;
 
         for (const page of doc.getPages()) {
-          const { width, height } = page.getSize();
-
-          const margin = 14; // safe inset
-          const qrSize = 54; // small & crisp
+          const { width } = page.getSize();
+          const margin = 14;
+          const qrSize = 54;
           const textPad = 6;
           const textWidth = font.widthOfTextAtSize(shortCode, fontSize);
           const stampWidth = qrSize + textPad + Math.max(36, textWidth);
@@ -153,7 +184,7 @@ export default function ClientPage() {
         return out;
       };
 
-      // 1) Initiate issuance to get CID
+      // 1) Initiate issuance to receive CID
       const initRes = await fetch("/api/issue", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -161,15 +192,16 @@ export default function ClientPage() {
       });
       if (!initRes.ok) throw new Error("Failed to initiate issuance");
       const initData = (await initRes.json()) as any;
-      const cid = initData.cid as string;
+      const cid = initData?.cid as string;
+      if (!cid) throw new Error("Server did not return CID");
 
-      // 2) Stamp with final verify URL (requires CID)
+      // 2) Stamp with final verify URL (even if SITE_URL missing, we avoid crash)
       const arrayBuffer = await file.arrayBuffer();
-      const verifyUrl = `${SITE_URL}/v/${cid}`;
+      const verifyUrl = `${SITE_URL || ""}/v/${cid}`.replace(/\/{2,}/g, "/").replace(":/", "://");
       const stampedBytes = await stampPdfWithQrAndShort({
         pdfBytes: arrayBuffer,
         verifyUrl,
-        shortCode: "--------", // temporary placeholder
+        shortCode: "--------",
       });
 
       // 3) Compute hash of stamped PDF; re-stamp with short code text
@@ -182,20 +214,16 @@ export default function ClientPage() {
         shortCode,
       });
 
-      // 4) Finalize issuance (server stores sha256 & decrements credits)
+      // 4) Finalize issuance (server stores & decrements credits)
       const finalizeRes = await fetch("/api/issue", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          cid,
-          sha256: stampedHash,
-          doc_type: "pdf",
-        }),
+        body: JSON.stringify({ cid, sha256: stampedHash, doc_type: "pdf" }),
       });
       if (!finalizeRes.ok) throw new Error("Failed to finalize issuance");
-      await finalizeRes.json();
+      await finalizeRes.json().catch(() => {});
 
-      // 5) Save local filename map
+      // 5) Save local filename mapping
       const nextMap = { ...nameMap, [cid]: file.name };
       saveNameMap(nextMap);
       setNameMap(nextMap);
@@ -216,7 +244,7 @@ export default function ClientPage() {
       setFile(null);
     } catch (e: any) {
       setMessage(e?.message || "Issue failed.");
-      console.error(e);
+      // keep the page alive
     } finally {
       setIssuing(false);
     }
@@ -231,6 +259,15 @@ export default function ClientPage() {
           computes the document hash locally.
         </p>
       </header>
+
+      {diag && (
+        <div className="card p-4 mb-6">
+          <div className="text-sm">
+            <strong>Notice:</strong> The page caught a client-side error and kept running:
+          </div>
+          <pre className="text-xs mt-2 overflow-x-auto whitespace-pre-wrap">{diag}</pre>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* LEFT: Uploader */}
@@ -293,16 +330,16 @@ export default function ClientPage() {
                   {mappedHistory.map((row) => (
                     <tr key={row.cid}>
                       <td className="text-sm text-muted">
-                        {new Date(row.issued_at).toLocaleString()}
+                        {row.issued_at ? new Date(row.issued_at).toLocaleString() : "—"}
                       </td>
                       <td className="text-sm">
-                        <div className="font-medium">{row.filename}</div>
+                        <div className="font-medium">{(row as any).filename || "(local name unavailable)"}</div>
                         <div className="text-xs text-muted">Type: {row.doc_type || "pdf"}</div>
                       </td>
                       <td className="text-sm">
-                        <code className="px-2 py-1 rounded-md bg-black/30">{row.short}</code>
+                        <code className="px-2 py-1 rounded-md bg-black/30">{(row as any).short || "—"}</code>
                       </td>
-                      <td><StatusBadge status={row.status} /></td>
+                      <td><StatusBadge status={(row.status as any) || "active"} /></td>
                       <td>
                         <a href={`/v/${row.cid}`} className="btn-ghost text-sm" title="Open verifier">Verify</a>
                       </td>
