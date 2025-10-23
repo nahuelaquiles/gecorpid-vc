@@ -7,14 +7,14 @@ import CopyButton from "@/components/ui/CopyButton";
 
 type HistoryItem = {
   cid: string;
-  sha256?: string;
-  status?: "active" | "revoked" | string;
-  issued_at?: string; // ISO
+  sha256: string;
+  status: "active" | "revoked" | string;
+  issued_at: string | number | null; // robust
   doc_type?: string | null;
 };
 
 const LS_KEY = "gecorpid-filenames";
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? ""; // never crashes if missing
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL;
 
 function hex(buf: ArrayBuffer) {
   const v = new Uint8Array(buf);
@@ -26,21 +26,29 @@ async function sha256(arrayBuffer: ArrayBuffer) {
   return hex(h);
 }
 
-function safeParse<T = unknown>(raw: string | null, fallback: T): T {
+function loadNameMap(): Record<string, string> {
   try {
-    return raw ? (JSON.parse(raw) as T) : fallback;
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw);
   } catch {
-    return fallback;
+    return {};
   }
 }
-function loadNameMap(): Record<string, string> {
-  if (typeof window === "undefined") return {};
-  return safeParse(localStorage.getItem(LS_KEY), {});
-}
+
 function saveNameMap(map: Record<string, string>) {
+  localStorage.setItem(LS_KEY, JSON.stringify(map));
+}
+
+function formatDate(d: string | number | null | undefined) {
+  if (d === null || d === undefined || d === "") return "—";
+  const dt = new Date(d);
+  if (isNaN(dt.getTime())) return "—";
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify(map));
-  } catch {}
+    return dt.toLocaleString();
+  } catch {
+    return "—";
+  }
 }
 
 export default function ClientPage() {
@@ -49,20 +57,6 @@ export default function ClientPage() {
   const [nameMap, setNameMap] = useState<Record<string, string>>({});
   const [issuing, setIssuing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [diag, setDiag] = useState<string | null>(null); // inline diagnostics instead of hard crash
-
-  // Catch unhandled errors/rejections and render them, not the white screen
-  useEffect(() => {
-    const onErr = (e: ErrorEvent) => setDiag(`Error: ${e.message}`);
-    const onRej = (e: PromiseRejectionEvent) =>
-      setDiag(`Promise rejection: ${e.reason?.message || String(e.reason)}`);
-    window.addEventListener("error", onErr);
-    window.addEventListener("unhandledrejection", onRej);
-    return () => {
-      window.removeEventListener("error", onErr);
-      window.removeEventListener("unhandledrejection", onRej);
-    };
-  }, []);
 
   useEffect(() => {
     setNameMap(loadNameMap());
@@ -72,44 +66,37 @@ export default function ClientPage() {
     (async () => {
       try {
         const res = await fetch("/api/history", { cache: "no-store" });
-        if (!res.ok) return; // don’t crash page if 401/500/empty
-        const ct = res.headers.get("content-type") || "";
-        if (!ct.includes("application/json")) return; // guard against HTML
-        const data = (await res.json()) as HistoryItem[] | { data?: HistoryItem[] };
-        const arr = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
-        setHistory(arr.filter(Boolean));
-      } catch (e: any) {
-        // swallow – show inline diag only
-        setDiag(`History fetch error: ${e?.message || e}`);
+        if (!res.ok) return;
+        // Si el body está vacío o no es JSON válido, evitamos crash
+        let data: HistoryItem[] = [];
+        try {
+          data = (await res.json()) as HistoryItem[];
+          if (!Array.isArray(data)) data = [];
+        } catch {
+          data = [];
+        }
+        setHistory(data);
+      } catch {
+        // silencioso: no rompe la UI
       }
     })();
   }, [issuing]);
 
   const mappedHistory = useMemo(() => {
-    try {
-      return history.map((row) => {
-        const filename = nameMap[row.cid!] || "(local name unavailable)";
-        const short = (row.sha256 || "").slice(0, 8);
-        return {
-          ...row,
-          filename,
-          short,
-        };
-      });
-    } catch (e: any) {
-      setDiag(`History map error: ${e?.message || e}`);
-      return [];
-    }
+    return (history || []).map((row) => {
+      const filename = (nameMap && row?.cid && nameMap[row.cid]) || "(local name unavailable)";
+      const short = ((row?.sha256 as string) || "").slice(0, 8);
+      return { ...row, filename, short };
+    });
   }, [history, nameMap]);
 
   async function handleIssue() {
     if (!file) return;
     setIssuing(true);
     setMessage(null);
-    setDiag(null);
 
     try {
-      // Lazy-load heavy libs only when needed
+      // Lazy-load para evitar errores en carga inicial
       const pdfLib: any = await import("pdf-lib");
       const qrMod: any = await import("qrcode");
       const QRCode = qrMod?.default ?? qrMod;
@@ -141,8 +128,9 @@ export default function ClientPage() {
 
         for (const page of doc.getPages()) {
           const { width } = page.getSize();
-          const margin = 14;
-          const qrSize = 54;
+
+          const margin = 14; // pts safe inset
+          const qrSize = 54; // small & crisp
           const textPad = 6;
           const textWidth = font.widthOfTextAtSize(shortCode, fontSize);
           const stampWidth = qrSize + textPad + Math.max(36, textWidth);
@@ -184,7 +172,7 @@ export default function ClientPage() {
         return out;
       };
 
-      // 1) Initiate issuance to receive CID
+      // 1) Get CID
       const initRes = await fetch("/api/issue", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -192,19 +180,18 @@ export default function ClientPage() {
       });
       if (!initRes.ok) throw new Error("Failed to initiate issuance");
       const initData = (await initRes.json()) as any;
-      const cid = initData?.cid as string;
-      if (!cid) throw new Error("Server did not return CID");
+      const cid = initData.cid as string;
 
-      // 2) Stamp with final verify URL (even if SITE_URL missing, we avoid crash)
+      // 2) Stamp with final verify URL (requires CID)
       const arrayBuffer = await file.arrayBuffer();
-      const verifyUrl = `${SITE_URL || ""}/v/${cid}`.replace(/\/{2,}/g, "/").replace(":/", "://");
+      const verifyUrl = `${SITE_URL}/v/${cid}`;
       const stampedBytes = await stampPdfWithQrAndShort({
         pdfBytes: arrayBuffer,
         verifyUrl,
         shortCode: "--------",
       });
 
-      // 3) Compute hash of stamped PDF; re-stamp with short code text
+      // 3) Hash → short code → re-stamp
       const stampedHash = await sha256(stampedBytes);
       const shortCode = stampedHash.slice(0, 8);
 
@@ -214,16 +201,20 @@ export default function ClientPage() {
         shortCode,
       });
 
-      // 4) Finalize issuance (server stores & decrements credits)
+      // 4) Finalize
       const finalizeRes = await fetch("/api/issue", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ cid, sha256: stampedHash, doc_type: "pdf" }),
+        body: JSON.stringify({
+          cid,
+          sha256: stampedHash,
+          doc_type: "pdf",
+        }),
       });
       if (!finalizeRes.ok) throw new Error("Failed to finalize issuance");
-      await finalizeRes.json().catch(() => {});
+      await finalizeRes.json();
 
-      // 5) Save local filename mapping
+      // 5) Save local filename map
       const nextMap = { ...nameMap, [cid]: file.name };
       saveNameMap(nextMap);
       setNameMap(nextMap);
@@ -244,7 +235,7 @@ export default function ClientPage() {
       setFile(null);
     } catch (e: any) {
       setMessage(e?.message || "Issue failed.");
-      // keep the page alive
+      console.error(e);
     } finally {
       setIssuing(false);
     }
@@ -259,15 +250,6 @@ export default function ClientPage() {
           computes the document hash locally.
         </p>
       </header>
-
-      {diag && (
-        <div className="card p-4 mb-6">
-          <div className="text-sm">
-            <strong>Notice:</strong> The page caught a client-side error and kept running:
-          </div>
-          <pre className="text-xs mt-2 overflow-x-auto whitespace-pre-wrap">{diag}</pre>
-        </div>
-      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* LEFT: Uploader */}
@@ -327,26 +309,24 @@ export default function ClientPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {mappedHistory.map((row) => (
+                  {(mappedHistory || []).map((row) => (
                     <tr key={row.cid}>
-                      <td className="text-sm text-muted">
-                        {row.issued_at ? new Date(row.issued_at).toLocaleString() : "—"}
-                      </td>
+                      <td className="text-sm text-muted">{formatDate(row.issued_at)}</td>
                       <td className="text-sm">
-                        <div className="font-medium">{(row as any).filename || "(local name unavailable)"}</div>
+                        <div className="font-medium">{row.filename}</div>
                         <div className="text-xs text-muted">Type: {row.doc_type || "pdf"}</div>
                       </td>
                       <td className="text-sm">
-                        <code className="px-2 py-1 rounded-md bg-black/30">{(row as any).short || "—"}</code>
+                        <code className="px-2 py-1 rounded-md bg-black/30">{row.short}</code>
                       </td>
-                      <td><StatusBadge status={(row.status as any) || "active"} /></td>
+                      <td><StatusBadge status={row.status} /></td>
                       <td>
                         <a href={`/v/${row.cid}`} className="btn-ghost text-sm" title="Open verifier">Verify</a>
                       </td>
                     </tr>
                   ))}
 
-                  {mappedHistory.length === 0 && (
+                  {(!mappedHistory || mappedHistory.length === 0) && (
                     <tr>
                       <td colSpan={5} className="py-10 text-center text-muted">
                         No documents issued yet.
