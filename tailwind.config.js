@@ -1,13 +1,15 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
-    "./src/app/**/*.{ts,tsx}",
-    "./src/components/**/*.{ts,tsx}",
+    "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
     extend: {
-      borderRadius: { '2xl': '1rem' },
-      boxShadow: { 'soft': '0 8px 30px rgba(0,0,0,0.06)' },
+      boxShadow: {
+        xl: "0 20px 45px rgba(0,0,0,0.45)",
+      },
     },
   },
   plugins: [],
