@@ -248,4 +248,84 @@ export default function ClientPage() {
               disabled={!file || issuing}
               onClick={handleIssue}
             >
-              {issuing ? "Iss
+              {issuing ? "Issuing…" : "Issue & Download VC-stamped PDF"}
+            </button>
+            <p className="text-xs text-muted mt-3">
+              The small stamp sits bottom-right with a QR and the short code (first 8 of SHA-256) for quick visual checks.
+            </p>
+          </div>
+
+          <div className="card p-5 mt-6">
+            <h3 className="text-lg font-semibold">Why this is private</h3>
+            <ul className="list-disc pl-5 mt-2 text-sm text-muted space-y-1">
+              <li>PDF never leaves your device — stamping and hashing happen in your browser.</li>
+              <li>Server only stores: <code>{'{ tenant_id, cid, sha256, vc_jwt, status, issued_at, doc_type }'}</code>.</li>
+              <li>QR resolves to <code>/v/[cid]</code> for public verification.</li>
+            </ul>
+          </div>
+
+          {message && (
+            <div className="card p-4 mt-6">
+              <div className="text-sm">{message}</div>
+            </div>
+          )}
+        </div>
+
+        {/* RIGHT: History */}
+        <div className="lg:col-span-2">
+          <div className="card p-5">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Issued documents</h3>
+              <span className="text-xs text-muted">Local names are stored in your browser only.</span>
+            </div>
+            <div className="overflow-x-auto mt-3">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th className="w-[22%]">Issued</th>
+                    <th>Filename (local)</th>
+                    <th className="w-[18%]">Short code</th>
+                    <th className="w-[16%]">Status</th>
+                    <th className="w-[1%]"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mappedHistory.map((row) => (
+                    <tr key={row.cid}>
+                      <td className="text-sm text-muted">
+                        {new Date(row.issued_at).toLocaleString()}
+                      </td>
+                      <td className="text-sm">
+                        <div className="font-medium">{row.filename}</div>
+                        <div className="text-xs text-muted">Type: {row.doc_type || "pdf"}</div>
+                      </td>
+                      <td className="text-sm">
+                        <code className="px-2 py-1 rounded-md bg-black/30">{row.short}</code>
+                      </td>
+                      <td><StatusBadge status={row.status} /></td>
+                      <td>
+                        <a href={`/v/${row.cid}`} className="btn-ghost text-sm" title="Open verifier">Verify</a>
+                      </td>
+                    </tr>
+                  ))}
+
+                  {mappedHistory.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="py-10 text-center text-muted">
+                        No documents issued yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="hr" />
+            <p className="text-xs text-muted">
+              We hide raw CIDs and full hashes here to reduce clutter; use the short code and the public verifier instead.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
