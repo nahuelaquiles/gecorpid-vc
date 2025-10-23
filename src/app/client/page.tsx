@@ -41,9 +41,13 @@ function saveNameMap(map: Record<string, string>) {
 /** Recoge posibles credenciales del login cliente */
 function authHeaders(): Record<string, string> {
   if (typeof window === "undefined") return {};
+  // If the browser already has cookies (e.g. a logged-in session), prefer using them and avoid sending custom headers.
+  const cookies = document?.cookie ?? "";
+  if (cookies && cookies.split(";").some((c) => c.trim() !== "")) {
+    return {};
+  }
   const h: Record<string, string> = {};
-
-  // Intenta varias claves típicas que solemos usar en este proyecto
+  // Try several known keys we use across the project to fetch credentials from localStorage
   const apiKey =
     localStorage.getItem("gecorpid_api_key") ||
     localStorage.getItem("client_api_key") ||
@@ -53,12 +57,10 @@ function authHeaders(): Record<string, string> {
     localStorage.getItem("gecorpid_tenant") ||
     localStorage.getItem("tenant") ||
     "";
-
   const token =
     localStorage.getItem("gecorpid_token") ||
     localStorage.getItem("token") ||
     "";
-
   if (apiKey) h["x-api-key"] = apiKey;
   if (tenant) h["x-tenant"] = tenant;
   if (token) h["authorization"] = token.startsWith("Bearer ") ? token : `Bearer ${token}`;
@@ -194,7 +196,7 @@ export default function ClientPage() {
       setNameMap(nextMap);
 
       // 6) autodescarga
-      const outName = `${file.name.replace(/\.pdf$/i, "")}_VC_${shortCode}.pdf`;
+      const outName = `${file.name.replace(/\\.pdf$/i, "")}_VC_${shortCode}.pdf`;
       const blob = new Blob([stampedWithShortBytes], { type: "application/pdf" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -282,8 +284,8 @@ export default function ClientPage() {
                       <td className="text-sm">
                         <code className="px-2 py-1 rounded-md bg-black/30">{row.short}</code>
                       </td>
-                      <td><StatusBadge status={row.status} /></td>
-                      <td><a href={`/v/${row.cid}`} className="btn-ghost text-sm" title="Open verifier">Verify</a></td>
+                        <td><StatusBadge status={row.status} /></td>
+                        <td><a href={`/v/${row.cid}`} className="btn-ghost text-sm" title="Open verifier">Verify</a></td>
                     </tr>
                   ))}
                   {(!mappedHistory || mappedHistory.length === 0) && (
