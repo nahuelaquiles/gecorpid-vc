@@ -2,16 +2,96 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Global styles for GecorpID app. Keep it minimal; Tailwind does the heavy lifting. */
-
-html {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
-    Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+/* Design tokens (brand-neutral, premium) */
+:root {
+  --bg: #0b0c0f;
+  --card: #12141a;
+  --muted: #a3a9b7;
+  --text: #e6e8ee;
+  --accent: #6ea8fe; /* subtle blue */
+  --accent-2: #7ee7c4; /* subtle green for OK states */
+  --danger: #ff6b6b;
+  --ring: 0 0 0 2px rgba(110,168,254,0.35);
 }
 
-body {
-  margin: 0;
+html, body, #__next {
+  height: 100%;
+  background: radial-gradient(1200px 600px at 10% -10%, #111626 0%, transparent 60%), radial-gradient(1000px 700px at 100% 0%, #101321 0%, transparent 55%), var(--bg);
+  color: var(--text);
+}
+
+* {
+  @apply antialiased;
+}
+
+/* Cards */
+.card {
+  @apply rounded-2xl shadow-xl shadow-black/30 bg-[color:var(--card)] border border-white/5;
+}
+
+/* Buttons */
+.btn {
+  @apply inline-flex items-center justify-center rounded-xl px-4 py-2 font-medium transition;
+  background: linear-gradient(180deg, #1a1f2e 0%, #111523 100%);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.btn:hover { filter: brightness(1.08); }
+.btn:focus { outline: none; box-shadow: var(--ring); }
+
+/* Ghost / Subtle buttons */
+.btn-ghost {
+  @apply rounded-xl px-3 py-2;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+/* Badges */
+.badge {
+  @apply inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+/* Inputs */
+.input {
+  @apply w-full rounded-xl border border-white/10 bg-[#0f1220] px-4 py-2 text-[color:var(--text)] placeholder-[color:var(--muted)] outline-none;
+}
+.input:focus { box-shadow: var(--ring); }
+
+/* Tables */
+.table {
+  @apply w-full text-sm;
+}
+.table th {
+  @apply text-left font-medium text-[color:var(--muted)] py-2 border-b border-white/10;
+}
+.table td {
+  @apply py-3 border-b border-white/5;
+}
+
+/* Dropzone shimmering */
+.dropzone {
+  background:
+    linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%),
+    linear-gradient(180deg, #121624 0%, #0e1020 100%);
+  border: 1px dashed rgba(255,255,255,0.15);
+}
+.dropzone.dragover {
+  border-color: var(--accent);
+  box-shadow: var(--ring);
+}
+
+/* Hero heading */
+.hero {
+  @apply text-3xl md:text-4xl font-semibold tracking-[-0.02em];
+}
+
+/* Small helpers */
+.text-muted { color: var(--muted); }
+.text-accent { color: var(--accent); }
+.text-ok { color: var(--accent-2); }
+.text-danger { color: var(--danger); }
+
+.hr {
+  @apply my-6 border-t border-white/10;
 }
