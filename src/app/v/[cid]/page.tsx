@@ -29,6 +29,18 @@ export default function VerifyPage({ params }: { params: { cid: string } }) {
   const [match, setMatch] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Format dates robustly; return an em dash when invalid or missing
+  function formatDate(value: string | number | null | undefined) {
+    if (value === null || value === undefined || value === "") return "—";
+    const dt = new Date(value);
+    if (isNaN(dt.getTime())) return "—";
+    try {
+      return dt.toLocaleString();
+    } catch {
+      return "—";
+    }
+  }
+
   const short = useMemo(() => (record?.sha256 || "").slice(0, 8), [record]);
 
   useEffect(() => {
@@ -36,8 +48,14 @@ export default function VerifyPage({ params }: { params: { cid: string } }) {
       try {
         const res = await fetch(`/api/verify/${cid}`, { cache: "no-store" });
         if (!res.ok) throw new Error("Verification record not found.");
-        const json = (await res.json()) as VerifyRecord;
-        setRecord(json);
+        let json: VerifyRecord | null = null;
+        try {
+          json = (await res.json()) as any;
+        } catch {
+          json = null;
+        }
+        if (!json || typeof json !== "object") throw new Error("Invalid verification response.");
+        setRecord(json as VerifyRecord);
       } catch (e: any) {
         setError(e?.message || "Unable to load verification record.");
       }
@@ -66,8 +84,8 @@ export default function VerifyPage({ params }: { params: { cid: string } }) {
             <h1 className="hero">Document Verifier</h1>
             <p className="text-muted mt-2 max-w-2xl">
               You likely arrived here by scanning the QR on a document. This page shows the credential status and lets you
-              optionally verify your local PDF **without uploading it**. Drag & drop your file below to compute its hash in your
-              browser and compare it with the registered one (zero-knowledge).
+              optionally verify your local PDF <strong>without uploading it</strong>. Drag & drop your file below to compute its hash in your
+              browser and compare it with the registered one (zero‑knowledge).
             </p>
           </div>
           {record && <StatusBadge status={record.status} />}
@@ -89,7 +107,7 @@ export default function VerifyPage({ params }: { params: { cid: string } }) {
               </div>
               <div className="hr" />
               <div className="text-sm">
-                <div className="text-muted">Registered hash (SHA-256)</div>
+                <div className="text-muted">Registered hash (SHA‑256)</div>
                 <div className="flex items-center gap-2">
                   <code className="px-2 py-1 rounded-md bg-black/30 break-all">{record.sha256}</code>
                   <CopyButton text={record.sha256} label="Copy hash" />
@@ -100,7 +118,7 @@ export default function VerifyPage({ params }: { params: { cid: string } }) {
               <div className="text-sm grid grid-cols-2 gap-2">
                 <div>
                   <div className="text-muted">Issued at</div>
-                  <div>{new Date(record.issued_at).toLocaleString()}</div>
+                  <div>{formatDate(record.issued_at)}</div>
                 </div>
                 <div>
                   <div className="text-muted">Type</div>
@@ -115,9 +133,9 @@ export default function VerifyPage({ params }: { params: { cid: string } }) {
 
         {/* Right: Local check */}
         <div className="card p-5">
-          <h3 className="text-lg font-semibold">Local zero-knowledge check</h3>
+          <h3 className="text-lg font-semibold">Local zero‑knowledge check</h3>
           <p className="text-sm text-muted mt-1">
-            Drag & drop your stamped PDF. We will compute its SHA-256 <em>locally</em> and compare.
+            Drag & drop your stamped PDF. We will compute its SHA‑256 <em>locally</em> and compare.
           </p>
           <div className="mt-3">
             <Dropzone onFile={handleLocalFile} />
@@ -160,13 +178,13 @@ export default function VerifyPage({ params }: { params: { cid: string } }) {
           <div>
             <div className="font-medium">Do I need to upload my PDF?</div>
             <div className="text-muted">
-              No. For privacy, you can verify locally: drop your file and we compute the hash in your browser to compare (zero-knowledge).
+              No. For privacy, you can verify locally: drop your file and we compute the hash in your browser to compare (zero‑knowledge).
             </div>
           </div>
           <div>
             <div className="font-medium">What’s the short code printed in the stamp?</div>
             <div className="text-muted">
-              It’s the first 8 hex chars of SHA-256. It enables quick visual cross-checks before any upload/drag-and-drop.
+              It’s the first 8 hex chars of SHA‑256. It enables quick visual cross‑checks before any upload/drag‑and‑drop.
             </div>
           </div>
           <div>
