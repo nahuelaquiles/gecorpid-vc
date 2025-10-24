@@ -1,22 +1,31 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 /**
- * Landing page — LIGHT THEME
+ * Landing page — fuerza tema CLARO en <html> y <body>.
  * - Fondo gris muy claro (no blanco puro)
- * - Mejor contraste en "How it works"
+ * - Mayor contraste en "How it works"
  * - Look más profesional/tech
  */
 export default function Home() {
   const year = new Date().getFullYear();
-
   const [logoOk, setLogoOk] = useState(true);
   const [heroLogoOk, setHeroLogoOk] = useState(true);
 
+  // Activa tema claro a nivel global SOLO en esta página
+  useEffect(() => {
+    document.documentElement.classList.add("theme-light");
+    document.body.classList.add("theme-light");
+    return () => {
+      document.documentElement.classList.remove("theme-light");
+      document.body.classList.remove("theme-light");
+    };
+  }, []);
+
   return (
-    <main className="wrap theme-light">
+    <main className="wrap">
       {/* HERO */}
       <section className="heroSection" aria-labelledby="hero-title">
         {heroLogoOk && (
@@ -34,9 +43,7 @@ export default function Home() {
           </div>
         )}
 
-        <h1 id="hero-title" className="title">
-          GecorpID
-        </h1>
+        <h1 id="hero-title" className="title">GecorpID</h1>
         <p className="subtitle">Verifiable PDFs, made simple.</p>
         <div className="cta">
           <Link href="/login" className="btn btnPrimary" aria-label="Go to Client Login">
@@ -50,9 +57,7 @@ export default function Home() {
 
       {/* FEATURES */}
       <section className="features" aria-labelledby="features-title">
-        <h2 id="features-title" className="sectionTitle">
-          What you can do
-        </h2>
+        <h2 id="features-title" className="sectionTitle">What you can do</h2>
         <div className="grid">
           <article className="card featureCard">
             <div className="icon" aria-hidden>🧾</div>
@@ -67,8 +72,7 @@ export default function Home() {
             <div className="icon" aria-hidden>🔍</div>
             <h3>One-click verification</h3>
             <p>
-              The QR-stamped copy points to the public page so anyone can validate integrity and
-              issuer authenticity.
+              The QR-stamped copy points to the public page so anyone can validate integrity and issuer authenticity.
             </p>
           </article>
 
@@ -106,8 +110,7 @@ export default function Home() {
             <div>
               <h4>Issue</h4>
               <p>
-                The issuer signs the credential; a public page at <code>/v/&lt;id&gt;</code> is available
-                immediately.
+                The issuer signs the credential; a public page at <code>/v/&lt;id&gt;</code> is available immediately.
               </p>
             </div>
           </li>
@@ -115,9 +118,7 @@ export default function Home() {
             <span className="num">3</span>
             <div>
               <h4>Verify</h4>
-              <p>
-                Anyone can confirm integrity and issuer authenticity—no need to trust a private database.
-              </p>
+              <p>Anyone can confirm integrity and issuer authenticity—no need to trust a private database.</p>
             </div>
           </li>
         </ol>
@@ -169,7 +170,7 @@ export default function Home() {
         </a>
       </footer>
 
-      {/* Inline styles local to landing */}
+      {/* Styles locales del landing */}
       <style jsx>{`
         * { box-sizing: border-box; }
         html, body, .wrap { min-height: 100%; }
@@ -217,13 +218,8 @@ export default function Home() {
         /* ---------- FEATURES ---------- */
         .features { max-width: 1160px; margin: 0 auto; }
         .sectionTitle { font-size: 22px; margin: 0 6px 14px; letter-spacing: 0.2px; }
-        .grid {
-          display: grid; grid-template-columns: repeat(12, 1fr); gap: 14px;
-        }
-        .featureCard {
-          grid-column: span 12;
-          transition: transform 0.12s ease, border-color 0.2s ease;
-        }
+        .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 14px; }
+        .featureCard { grid-column: span 12; transition: transform 0.12s ease, border-color 0.2s ease; }
         .featureCard:hover { transform: translateY(-2px); }
         .icon {
           font-size: 20px; width: 32px; height: 32px;
@@ -236,7 +232,7 @@ export default function Home() {
         @media (min-width: 740px) { .featureCard { grid-column: span 6; } }
         @media (min-width: 1024px) { .featureCard { grid-column: span 3; } }
 
-        /* ---------- HOW IT WORKS (high contrast) ---------- */
+        /* ---------- HOW IT WORKS (alto contraste) ---------- */
         .how {
           max-width: 1160px;
           margin: 0 auto;
@@ -247,9 +243,7 @@ export default function Home() {
           padding: 20px 16px 12px;
           color: var(--text);
         }
-        .steps {
-          list-style: none; margin: 12px 0 14px; padding: 0; display: grid; gap: 12px;
-        }
+        .steps { list-style: none; margin: 12px 0 14px; padding: 0; display: grid; gap: 12px; }
         .step {
           display: grid; grid-template-columns: 36px 1fr; gap: 12px; align-items: start;
           background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px;
@@ -261,7 +255,7 @@ export default function Home() {
           box-shadow: 0 6px 18px rgba(30,64,255,0.25);
         }
         .step h4 { margin: 2px 0 6px; font-size: 16px; color: #0b0d12; }
-        .step p  { margin: 0; font-size: 15px; color: #374151; } /* mejora legibilidad */
+        .step p  { margin: 0; font-size: 15px; color: #374151; }
         .step code { background: #eef2ff; color: #1e40ff; padding: 0 6px; border-radius: 6px; }
 
         /* ---------- WHY VCs ---------- */
@@ -275,8 +269,7 @@ export default function Home() {
           padding: 18px 16px;
         }
         .bullets {
-          list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px;
-          color: #374151;
+          list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; color: #374151;
         }
         .bullets li {
           display: grid; grid-template-columns: 24px 1fr; align-items: start; gap: 8px; font-size: 15px;
@@ -290,10 +283,7 @@ export default function Home() {
         /* ---------- BRAND ---------- */
         .brand { display: flex; flex-direction: column; align-items: center; gap: 6px; }
         .logoLink { display: inline-flex; align-items: center; }
-        .logoImg {
-          display: block; width: 40px; height: 40px; object-fit: cover;
-          border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.08);
-        }
+        .logoImg { display: block; width: 40px; height: 40px; object-fit: cover; border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
         .logoFallback { font-weight: 800; letter-spacing: 0.2px; font-size: 18px; }
         .legend { font-size: 12px; color: var(--muted); }
         .brandBottom { max-width: 1160px; margin: 0 auto; }
