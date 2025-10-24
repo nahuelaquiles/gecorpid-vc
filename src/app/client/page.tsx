@@ -85,7 +85,7 @@ async function callIssueFinal(body: { cid: string; sha256: string; doc_type: str
     body: JSON.stringify(body),
   });
   const ct = res.headers.get("content-type") || "";
-  const data = ct.includes("application/json") ? await res.json() : { error: await res.text() };
+  the const data = ct.includes("application/json") ? await res.json() : { error: await res.text() };
   if (!res.ok) throw new Error((data as any)?.error || "issue-final failed");
   return data as { cid: string; sha256: string; doc_type: string; issued_at: string | null };
 }
@@ -111,45 +111,117 @@ async function fetchHistoryApi() {
 
 /**
  * Stamps a compact QR badge (bottom-right) on every page.
- * Subtle plate, small margin, no vendor text.
+ * Smaller QR, label text above, and a clickable link area.
  */
 async function stampPdfWithQrBadge(originalBytes: ArrayBuffer, verifyUrl: string): Promise<Uint8Array> {
-  const { PDFDocument, rgb } = await import("pdf-lib");
+  const {
+    PDFDocument,
+    rgb,
+    StandardFonts,
+    PDFName,
+    PDFString,
+  } = await import("pdf-lib");
   const qrMod: any = await import("qrcode");
   const QRCode = qrMod?.default ?? qrMod;
 
   const pdf = await PDFDocument.load(originalBytes);
 
-  const dataUrl: string = await QRCode.toDataURL(verifyUrl, { errorCorrectionLevel: "M", margin: 0, scale: 6 });
+  // Absolutizamos la URL por si viene relativa (e.g., "/v/xxx")
+  const absoluteUrl =
+    verifyUrl && !/^https?:\/\//i.test(verifyUrl)
+      ? new URL(verifyUrl, window.location.origin).toString()
+      : verifyUrl;
+
+  // Generamos QR
+  const dataUrl: string = await QRCode.toDataURL(absoluteUrl, {
+    errorCorrectionLevel: "M",
+    margin: 0,
+    scale: 6,
+  });
   const b64 = dataUrl.split(",")[1] ?? "";
   const pngBytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
   const png = await pdf.embedPng(pngBytes);
 
+  // Fuente para la leyenda
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  const label = "verifiable digital credential";
+  const fontSize = 7.5;
+
+  // Hacemos el QR ~50% del tamaño anterior
   const maxSide = Math.max(png.width, png.height);
-  const target = 88; // ~88px square
+  const target = 44; // antes ~88
   const scale = target / maxSide;
   const dims = png.scale(scale);
 
+  // Medidas del "plate" (tarjeta blanca) que contiene etiqueta + QR
+  const pad = 6;     // margen interno
+  const gap = 3;     // espacio entre label y QR
+  const labelWidth = font.widthOfTextAtSize(label, fontSize);
+  const plateInnerWidth = Math.max(dims.width, labelWidth);
+  const plateWidth = plateInnerWidth + pad * 2;
+  const plateHeight = pad + fontSize + gap + dims.height + pad;
+
   for (const page of pdf.getPages()) {
     const { width } = page.getSize();
-    const inset = 14; // safe margin
-    const pad = 6;
+    const inset = 14; // margen seguro al borde
 
-    const x = width - dims.width - inset;
-    const y = inset;
+    // Esquina inferior derecha
+    const plateX = width - plateWidth - inset;
+    const plateY = inset;
 
+    // Fondo/placa
     page.drawRectangle({
-      x: x - pad,
-      y: y - pad,
-      width: dims.width + pad * 2,
-      height: dims.height + pad * 2,
+      x: plateX,
+      y: plateY,
+      width: plateWidth,
+      height: plateHeight,
       color: rgb(1, 1, 1),
       opacity: 0.9,
       borderColor: rgb(230 / 255, 234 / 255, 240 / 255),
       borderWidth: 1,
     });
 
-    page.drawImage(png, { x, y, width: dims.width, height: dims.height });
+    // Texto (centrado)
+    const labelX = plateX + (plateWidth - labelWidth) / 2;
+    const labelY = plateY + plateHeight - pad - fontSize;
+    page.drawText(label, {
+      x: labelX,
+      y: labelY,
+      size: fontSize,
+      font,
+      color: rgb(0, 0, 0),
+    });
+
+    // QR (centrado en el plate)
+    const qrX = plateX + (plateWidth - dims.width) / 2;
+    const qrY = plateY + pad;
+    page.drawImage(png, { x: qrX, y: qrY, width: dims.width, height: dims.height });
+
+    // Enlace clickeable (todo el plate abre la URL del verificador)
+    try {
+      const ctx: any = (pdf as any).context;
+      const annot = ctx.obj({
+        Type: PDFName.of("Annot"),
+        Subtype: PDFName.of("Link"),
+        Rect: ctx.obj([plateX, plateY, plateX + plateWidth, plateY + plateHeight]),
+        Border: ctx.obj([0, 0, 0]),
+        A: ctx.obj({
+          Type: PDFName.of("Action"),
+          S: PDFName.of("URI"),
+          URI: PDFString.of(absoluteUrl),
+        }),
+      });
+      const annotsKey = PDFName.of("Annots");
+      const node: any = (page as any).node;
+      const existing = node.get(annotsKey);
+      if (existing) {
+        existing.push(annot);
+      } else {
+        node.set(annotsKey, ctx.obj([annot]));
+      }
+    } catch {
+      // Si el visor no soporta anotaciones, el QR igual funciona al escanearse.
+    }
   }
 
   return pdf.save();
