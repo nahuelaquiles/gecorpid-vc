@@ -7,7 +7,7 @@ import Link from 'next/link';
  * Root layout component. This file defines the HTML skeleton for
  * every page in the application. It intentionally avoids visible
  * branding in the header to keep pages lean; individual pages
- * supply their own headers. A machine‑readable DID link is
+ * supply their own headers. A machine-readable DID link is
  * included for verifiers to discover the issuer’s DID document.
  */
 
@@ -20,7 +20,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <head>
-        {/* Machine‑readable DID link for external verifiers */}
+        {/* Machine-readable DID link for external verifiers */}
         <link rel="did" href="/.well-known/did.json" />
       </head>
       <body className="min-h-screen antialiased text-neutral-900 bg-[#f6f7fb] flex flex-col">
@@ -37,20 +37,24 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               </Link>
               .
             </div>
+
+            {/* Links con tono más oscuro */}
             <nav className="text-sm flex items-center gap-4">
               <Link
                 href="/terms"
-                className="underline underline-offset-4 hover:text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-800 rounded"
+                className="text-neutral-800 underline underline-offset-4 hover:text-neutral-950 focus:outline-none focus:ring-2 focus:ring-neutral-800 rounded"
               >
                 Terms of Service
               </Link>
               <Link
                 href="/privacy"
-                className="underline underline-offset-4 hover:text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-800 rounded"
+                className="text-neutral-800 underline underline-offset-4 hover:text-neutral-950 focus:outline-none focus:ring-2 focus:ring-neutral-800 rounded"
               >
                 Privacy Policy
               </Link>
             </nav>
+
+            {/* Sin “(invoicing entity)” */}
             <div className="text-sm text-neutral-600">
               GecorpID is a product by{' '}
               <a
@@ -60,8 +64,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                 className="underline underline-offset-4 hover:text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-800 rounded"
               >
                 GECORP
-              </a>{' '}
-              (invoicing entity).
+              </a>.
             </div>
           </div>
         </footer>
