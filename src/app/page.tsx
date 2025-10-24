@@ -1,301 +1,223 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 /**
- * Landing page — fuerza tema CLARO en <html> y <body>.
- * - Fondo gris muy claro (no blanco puro)
- * - Mayor contraste en "How it works"
- * - Look más profesional/tech
+ * Landing (dark gradient + glassmorphism) a juego con el área de cliente.
+ * - Fondo: bg-slate-950 + capas radiales (como cliente)
+ * - Tarjetas: border white/10 + bg white/5 + blur/shadow
+ * - Tipografía clara con buen contraste
  */
 export default function Home() {
   const year = new Date().getFullYear();
   const [logoOk, setLogoOk] = useState(true);
   const [heroLogoOk, setHeroLogoOk] = useState(true);
 
-  // Activa tema claro a nivel global SOLO en esta página
-  useEffect(() => {
-    document.documentElement.classList.add("theme-light");
-    document.body.classList.add("theme-light");
-    return () => {
-      document.documentElement.classList.remove("theme-light");
-      document.body.classList.remove("theme-light");
-    };
-  }, []);
-
   return (
-    <main className="wrap">
-      {/* HERO */}
-      <section className="heroSection" aria-labelledby="hero-title">
-        {heroLogoOk && (
-          <div className="heroLogoWrap">
-            <img
-              src="/gecorpid_logo.png"
-              alt="GecorpID"
-              width={160}
-              height={160}
-              className="heroLogo"
-              loading="eager"
-              decoding="async"
-              onError={() => setHeroLogoOk(false)}
-            />
-          </div>
-        )}
+    <div className="relative min-h-screen overflow-hidden bg-slate-950 text-slate-100">
+      {/* Degradado radial idéntico al cliente */}
+      <div
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(130%_140%_at_15%_10%,rgba(56,189,248,0.16),transparent_55%),radial-gradient(120%_120%_at_85%_-10%,rgba(165,180,252,0.14),transparent_60%),linear-gradient(180deg,#020617,rgba(2,6,23,0.92))]"
+        aria-hidden
+      />
 
-        <h1 id="hero-title" className="title">GecorpID</h1>
-        <p className="subtitle">Verifiable PDFs, made simple.</p>
-        <div className="cta">
-          <Link href="/login" className="btn btnPrimary" aria-label="Go to Client Login">
+      {/* HERO */}
+      <header className="relative mx-auto max-w-6xl px-6 pt-20 pb-10 text-center">
+        {heroLogoOk && (
+          <img
+            src="/gecorpid_logo.png"
+            alt="GecorpID"
+            className="mx-auto mb-4 h-28 w-auto"
+            loading="eager"
+            decoding="async"
+            onError={() => setHeroLogoOk(false)}
+          />
+        )}
+        <h1 className="text-4xl font-semibold tracking-tight text-white md:text-5xl">GecorpID</h1>
+        <p className="mx-auto mt-2 max-w-xl text-base text-slate-300/90">
+          Verifiable PDFs, made simple.
+        </p>
+
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          <Link
+            href="/login"
+            className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-5 py-2.5 text-sm font-semibold text-slate-100 transition hover:border-white/25 hover:bg-white/20"
+            aria-label="Go to Client Login"
+          >
             Client Login
           </Link>
-          <Link href="/admin" className="btn btnSecondary" aria-label="Go to Admin area">
+          <Link
+            href="/admin"
+            className="inline-flex items-center gap-2 rounded-full border border-sky-300/30 bg-sky-600/90 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-500"
+            aria-label="Go to Admin area"
+          >
             Admin
           </Link>
         </div>
-      </section>
+      </header>
 
-      {/* FEATURES */}
-      <section className="features" aria-labelledby="features-title">
-        <h2 id="features-title" className="sectionTitle">What you can do</h2>
-        <div className="grid">
-          <article className="card featureCard">
-            <div className="icon" aria-hidden>🧾</div>
-            <h3>Issue verifiable PDFs</h3>
-            <p>
-              Upload a PDF and get a verification page at <code>/v/&lt;id&gt;</code>. The original file
-              stays immutable.
-            </p>
-          </article>
-
-          <article className="card featureCard">
-            <div className="icon" aria-hidden>🔍</div>
-            <h3>One-click verification</h3>
-            <p>
-              The QR-stamped copy points to the public page so anyone can validate integrity and issuer authenticity.
-            </p>
-          </article>
-
-          <article className="card featureCard">
-            <div className="icon" aria-hidden>⏱️</div>
-            <h3>Clear issuance history</h3>
-            <p>
-              The client portal shows “Issued at” timestamps and keeps the most recent items on top.
-            </p>
-          </article>
-
-          <article className="card featureCard">
-            <div className="icon" aria-hidden>🏷️</div>
-            <h3>Tenants &amp; credits</h3>
-            <p>
-              Multi-tenant, credit-based flow. Start processing when you’re ready—no silent background actions.
-            </p>
-          </article>
-        </div>
-      </section>
-
-      {/* HOW IT WORKS */}
-      <section className="how" aria-labelledby="how-title">
-        <h2 id="how-title" className="sectionTitle">How it works</h2>
-        <ol className="steps">
-          <li className="step">
-            <span className="num">1</span>
-            <div>
-              <h4>Upload</h4>
-              <p>Send your PDF. The system stores the original and creates a QR-stamped copy.</p>
-            </div>
-          </li>
-          <li className="step">
-            <span className="num">2</span>
-            <div>
-              <h4>Issue</h4>
-              <p>
-                The issuer signs the credential; a public page at <code>/v/&lt;id&gt;</code> is available immediately.
+      {/* CONTENIDO */}
+      <main className="relative mx-auto max-w-6xl px-6 pb-20">
+        {/* WHAT YOU CAN DO */}
+        <section aria-labelledby="features-title">
+          <h2 id="features-title" className="mb-3 text-lg font-semibold text-white">
+            What you can do
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <article className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-2xl shadow-black/30 backdrop-blur">
+              <div className="mb-2 inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-sky-300">
+                🧾
+              </div>
+              <h3 className="text-base font-semibold text-white">Issue verifiable PDFs</h3>
+              <p className="mt-1 text-sm text-slate-300/90">
+                Upload a PDF and get a verification page at <code className="font-mono">/v/&lt;id&gt;</code>.
+                The original file stays immutable.
               </p>
-            </div>
-          </li>
-          <li className="step">
-            <span className="num">3</span>
-            <div>
-              <h4>Verify</h4>
-              <p>Anyone can confirm integrity and issuer authenticity—no need to trust a private database.</p>
-            </div>
-          </li>
-        </ol>
-      </section>
+            </article>
 
-      {/* WHY VCs */}
-      <section className="why" aria-labelledby="why-title">
-        <h2 id="why-title" className="sectionTitle">Why Verifiable Credentials?</h2>
-        <ul className="bullets">
-          <li><span className="check">✓</span> Cryptographic signatures prove origin and integrity.</li>
-          <li><span className="check">✓</span> Self-verifiable: no central database dependency.</li>
-          <li><span className="check">✓</span> Tamper-evident: any change breaks verification.</li>
-          <li><span className="check">✓</span> Works even if the original server is offline.</li>
-        </ul>
-      </section>
+            <article className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-2xl shadow-black/30 backdrop-blur">
+              <div className="mb-2 inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-indigo-300">
+                🔍
+              </div>
+              <h3 className="text-base font-semibold text-white">One-click verification</h3>
+              <p className="mt-1 text-sm text-slate-300/90">
+                The QR-stamped copy points to the public page so anyone can validate integrity and issuer authenticity.
+              </p>
+            </article>
 
-      {/* BRAND */}
-      <div className="brand brandBottom">
-        <a
-          href="https://www.gecorp.com.ar"
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Open GECORP website"
-          className="logoLink"
-        >
-          {logoOk ? (
-            <img
-              src="/Gecorp-Logo.iso.jpg"
-              alt="GECORP"
-              width={40}
-              height={40}
-              className="logoImg"
-              loading="eager"
-              decoding="async"
-              onError={() => setLogoOk(false)}
-            />
-          ) : (
-            <span className="logoFallback">GECORP</span>
-          )}
-        </a>
-        <span className="legend">developed by gecorp</span>
-      </div>
+            <article className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-2xl shadow-black/30 backdrop-blur">
+              <div className="mb-2 inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-fuchsia-300">
+                ⏱️
+              </div>
+              <h3 className="text-base font-semibold text-white">Clear issuance history</h3>
+              <p className="mt-1 text-sm text-slate-300/90">
+                The client portal shows “Issued at” timestamps and keeps the most recent items on top.
+              </p>
+            </article>
 
-      {/* FOOTER */}
-      <footer className="footer">
-        © {year} GecorpID —{" "}
-        <a href="/.well-known/did.json" target="_blank" rel="noopener noreferrer">
-          View issuer DID document
-        </a>
-      </footer>
+            <article className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-2xl shadow-black/30 backdrop-blur">
+              <div className="mb-2 inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-amber-300">
+                🏷️
+              </div>
+              <h3 className="text-base font-semibold text-white">Tenants &amp; credits</h3>
+              <p className="mt-1 text-sm text-slate-300/90">
+                Multi-tenant, credit-based flow. Start processing when you’re ready—no silent background actions.
+              </p>
+            </article>
+          </div>
+        </section>
 
-      {/* Styles locales del landing */}
-      <style jsx>{`
-        * { box-sizing: border-box; }
-        html, body, .wrap { min-height: 100%; }
+        {/* HOW IT WORKS (alto contraste en oscuro) */}
+        <section className="mt-8 grid gap-6 rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl shadow-black/40 backdrop-blur">
+          <h2 className="text-lg font-semibold text-white">How it works</h2>
+          <ol className="grid gap-3">
+            <li className="flex items-start gap-3">
+              <span className="mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-sky-500 text-xs font-semibold text-white">
+                1
+              </span>
+              <div>
+                <h4 className="text-sm font-semibold text-white">Upload</h4>
+                <p className="text-sm text-slate-300/90">
+                  Send your PDF. The system stores the original and creates a QR-stamped copy.
+                </p>
+              </div>
+            </li>
+            <li className="flex items-start gap-3">
+              <span className="mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-sky-500 text-xs font-semibold text-white">
+                2
+              </span>
+              <div>
+                <h4 className="text-sm font-semibold text-white">Issue</h4>
+                <p className="text-sm text-slate-300/90">
+                  The issuer signs the credential; a public page at <code className="font-mono">/v/&lt;id&gt;</code> is available immediately.
+                </p>
+              </div>
+            </li>
+            <li className="flex items-start gap-3">
+              <span className="mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-sky-500 text-xs font-semibold text-white">
+                3
+              </span>
+              <div>
+                <h4 className="text-sm font-semibold text-white">Verify</h4>
+                <p className="text-sm text-slate-300/90">
+                  Anyone can confirm integrity and issuer authenticity—no need to trust a private database.
+                </p>
+              </div>
+            </li>
+          </ol>
+        </section>
 
-        /* ---------- HERO ---------- */
-        .heroSection {
-          max-width: 1160px;
-          margin: 0 auto;
-          text-align: center;
-          background: transparent;
-          padding: 28px 20px 16px;
-        }
-        .heroLogoWrap { display: flex; justify-content: center; margin-bottom: 10px; }
-        .heroLogo { display: block; width: clamp(108px, 18vw, 160px); height: auto; object-fit: contain; }
+        {/* WHY VCs */}
+        <section className="mt-8 rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl shadow-black/40 backdrop-blur">
+          <h2 className="text-lg font-semibold text-white">Why Verifiable Credentials?</h2>
+          <ul className="mt-3 grid gap-2 text-slate-300/90">
+            <li className="flex items-start gap-2">
+              <span className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-emerald-400/40 bg-emerald-500/10 text-[13px] font-bold text-emerald-300">
+                ✓
+              </span>
+              Cryptographic signatures prove origin and integrity.
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-emerald-400/40 bg-emerald-500/10 text-[13px] font-bold text-emerald-300">
+                ✓
+              </span>
+              Self-verifiable: no central database dependency.
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-emerald-400/40 bg-emerald-500/10 text-[13px] font-bold text-emerald-300">
+                ✓
+              </span>
+              Tamper-evident: any change breaks verification.
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-emerald-400/40 bg-emerald-500/10 text-[13px] font-bold text-emerald-300">
+                ✓
+              </span>
+              Works even if the original server is offline.
+            </li>
+          </ul>
+        </section>
 
-        .title {
-          font-size: clamp(34px, 6vw, 64px);
-          line-height: 1.06;
-          letter-spacing: -0.02em;
-          margin: 0 0 6px;
-        }
-        .subtitle {
-          margin: 0 auto 18px;
-          max-width: 700px;
-          color: var(--muted);
-          font-size: clamp(14px, 1.8vw, 18px);
-        }
-        .cta {
-          display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;
-        }
-        .btnPrimary {
-          background: linear-gradient(180deg, #3b82f6, var(--accent));
-          color: #fff;
-          border: 1px solid rgba(30, 64, 255, 0.35);
-          box-shadow: 0 8px 28px rgba(30, 64, 255, 0.24);
-        }
-        .btnPrimary:hover { filter: brightness(1.04); }
-        .btnSecondary {
-          background: #fff; color: var(--accent);
-          border: 1px solid rgba(30, 64, 255, 0.35);
-          box-shadow: 0 8px 24px rgba(2, 6, 23, 0.06);
-        }
-        .btnSecondary:hover { background: rgba(30, 64, 255, 0.06); }
+        {/* BRAND / FOOTER */}
+        <div className="mt-12 flex flex-col items-center gap-2">
+          <a
+            href="https://www.gecorp.com.ar"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Open GECORP website"
+            className="inline-flex items-center"
+          >
+            {logoOk ? (
+              <img
+                src="/Gecorp-Logo.iso.jpg"
+                alt="GECORP"
+                width={40}
+                height={40}
+                className="h-10 w-10 rounded-md shadow-lg shadow-black/30"
+                loading="eager"
+                decoding="async"
+                onError={() => setLogoOk(false)}
+              />
+            ) : (
+              <span className="text-sm font-bold tracking-wide">GECORP</span>
+            )}
+          </a>
+          <span className="text-xs text-slate-400">developed by gecorp</span>
+        </div>
 
-        /* ---------- FEATURES ---------- */
-        .features { max-width: 1160px; margin: 0 auto; }
-        .sectionTitle { font-size: 22px; margin: 0 6px 14px; letter-spacing: 0.2px; }
-        .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 14px; }
-        .featureCard { grid-column: span 12; transition: transform 0.12s ease, border-color 0.2s ease; }
-        .featureCard:hover { transform: translateY(-2px); }
-        .icon {
-          font-size: 20px; width: 32px; height: 32px;
-          display: inline-flex; align-items: center; justify-content: center;
-          border-radius: 10px; background: #eef2ff; color: var(--accent);
-          margin-bottom: 6px;
-        }
-        .card h3 { margin: 4px 0 6px; font-size: 18px; color: var(--text); }
-        .card p { margin: 0; color: var(--muted); font-size: 15px; }
-        @media (min-width: 740px) { .featureCard { grid-column: span 6; } }
-        @media (min-width: 1024px) { .featureCard { grid-column: span 3; } }
-
-        /* ---------- HOW IT WORKS (alto contraste) ---------- */
-        .how {
-          max-width: 1160px;
-          margin: 0 auto;
-          background: var(--card);
-          border: 1px solid #e5e7eb;
-          border-radius: 16px;
-          box-shadow: 0 10px 30px rgba(16, 24, 40, 0.08);
-          padding: 20px 16px 12px;
-          color: var(--text);
-        }
-        .steps { list-style: none; margin: 12px 0 14px; padding: 0; display: grid; gap: 12px; }
-        .step {
-          display: grid; grid-template-columns: 36px 1fr; gap: 12px; align-items: start;
-          background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px;
-        }
-        .num {
-          display: inline-flex; align-items: center; justify-content: center;
-          width: 36px; height: 36px; font-weight: 800; border-radius: 10px;
-          background: #1e40ff; color: #fff; border: 0;
-          box-shadow: 0 6px 18px rgba(30,64,255,0.25);
-        }
-        .step h4 { margin: 2px 0 6px; font-size: 16px; color: #0b0d12; }
-        .step p  { margin: 0; font-size: 15px; color: #374151; }
-        .step code { background: #eef2ff; color: #1e40ff; padding: 0 6px; border-radius: 6px; }
-
-        /* ---------- WHY VCs ---------- */
-        .why {
-          max-width: 1160px;
-          margin: 0 auto;
-          background: var(--card);
-          border: 1px solid #e5e7eb;
-          border-radius: 16px;
-          box-shadow: 0 10px 30px rgba(16, 24, 40, 0.08);
-          padding: 18px 16px;
-        }
-        .bullets {
-          list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; color: #374151;
-        }
-        .bullets li {
-          display: grid; grid-template-columns: 24px 1fr; align-items: start; gap: 8px; font-size: 15px;
-        }
-        .check {
-          display: inline-flex; align-items: center; justify-content: center;
-          width: 24px; height: 24px; border-radius: 8px;
-          background: #ecfdf5; color: #10b981; font-weight: 800; border: 1px solid #d1fae5;
-        }
-
-        /* ---------- BRAND ---------- */
-        .brand { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-        .logoLink { display: inline-flex; align-items: center; }
-        .logoImg { display: block; width: 40px; height: 40px; object-fit: cover; border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
-        .logoFallback { font-weight: 800; letter-spacing: 0.2px; font-size: 18px; }
-        .legend { font-size: 12px; color: var(--muted); }
-        .brandBottom { max-width: 1160px; margin: 0 auto; }
-
-        /* ---------- FOOTER ---------- */
-        .footer {
-          max-width: 1160px; margin: 0 auto; text-align: center;
-          color: var(--muted); font-size: 13px; padding: 6px 16px 12px;
-        }
-        .footer a { color: var(--accent); text-decoration: underline; }
-        .footer a:hover { opacity: 0.9; }
-      `}</style>
-    </main>
+        <footer className="mt-6 text-center text-xs text-slate-400">
+          © {year} GecorpID —{" "}
+          <a
+            href="/.well-known/did.json"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline decoration-slate-500 hover:text-slate-300"
+          >
+            View issuer DID document
+          </a>
+        </footer>
+      </main>
+    </div>
   );
 }
