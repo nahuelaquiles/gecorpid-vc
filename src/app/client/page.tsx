@@ -138,7 +138,7 @@ async function stampPdfWithQrBadge(originalBytes: ArrayBuffer, verifyUrl: string
 
   // Fuente para la leyenda
   const font = await pdf.embedFont(StandardFonts.Helvetica);
-  const label = "verifiable digital credential";
+  const label = "Digital credential";
   const fontSize = 7.5;
 
   // Hacemos el QR ~50% del tamaño anterior
