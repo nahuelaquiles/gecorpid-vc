@@ -7,6 +7,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 const STORAGE_KEY = "gecorpid-filenames"; // { [cid]: filename }
 
 type Row = {
+  id: string; // nuevo: id único para actualizar filas correctamente
   name: string;
   cid?: string;
   verifyUrl?: string;
@@ -25,6 +26,10 @@ type HistoryRow = {
   doc_type?: string | null;
   doc_filename?: string | null;
 };
+
+function uid() {
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
 
 function shortHash(hex: string) {
   return (hex || "").slice(0, 8).toUpperCase();
@@ -194,41 +199,47 @@ export default function ClientPage() {
     });
   }, []);
 
-  const handleFiles = useCallback(
-    async (files: FileList | null) => {
-      if (!files || files.length === 0) return;
-      const file = files[0];
+  // helper para actualizar una fila por id
+  const updateRow = useCallback((id: string, patch: Partial<Row>) => {
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  }, []);
 
-      setLoading(true);
-      setAuthError(null);
-
+  // Procesa un único archivo (flujo original, pero aislado)
+  const processOneFile = useCallback(
+    async (file: File) => {
+      const id = uid();
       setRows((prev) => [
-        { name: file.name, status: "pending", message: "Preparing issue request…" },
+        {
+          id,
+          name: file.name,
+          status: "pending",
+          message: "Preparing issue request…",
+        },
         ...prev,
       ]);
 
       try {
-        // 1) Ask server for CID + verify URL
+        // 1) Pedir CID + verify URL
         const { cid, verify_url } = await callIssueRequest();
+        updateRow(id, { cid, verifyUrl: verify_url });
 
-        // 2) Stamp original PDF with QR badge
-        setRows((prev) => [{ ...prev[0], cid, verifyUrl: verify_url }, ...prev.slice(1)]);
+        // 2) Estampar PDF con QR
+        updateRow(id, { message: "Stamping PDF with secure QR…" });
         const originalBytes = await file.arrayBuffer();
-        setRows((prev) => [{ ...prev[0], message: "Stamping PDF with secure QR…" }, ...prev.slice(1)]);
         const stampedBytes = await stampPdfWithQrBadge(originalBytes, verify_url);
 
-        // 3) Compute hash of stamped PDF (canonical flow)
+        // 3) Hash del PDF estampado
         const sha = await sha256Hex(stampedBytes);
         const code = shortHash(sha);
 
-        // 4) Finalize issuance
-        setRows((prev) => [{ ...prev[0], message: "Finalizing issuance…" }, ...prev.slice(1)]);
+        // 4) Finalizar emisión
+        updateRow(id, { message: "Finalizing issuance…" });
         await callIssueFinal({ cid, sha256: sha, doc_type: "pdf" });
 
-        // 5) Persist local filename mapping { cid → filename }
+        // 5) Guardar mapeo local { cid → filename }
         rememberName(cid, file.name);
 
-        // 6) Auto-download: <original>_VC_<SHORT>.pdf
+        // 6) Autodescarga: <original>_VC_<SHORT>.pdf
         const blob = new Blob([stampedBytes], { type: "application/pdf" });
         const url = URL.createObjectURL(blob);
         const outName = `${file.name.replace(/\.pdf$/i, "")}_VC_${code}.pdf`;
@@ -240,19 +251,41 @@ export default function ClientPage() {
         a.remove();
         URL.revokeObjectURL(url);
 
-        // 7) Update UI
-        setRows((prev) => [{ ...prev[0], sha256: sha, short: code, status: "issued", message: "Issued successfully." }, ...prev.slice(1)]);
+        // 7) UI + refrescar créditos/historial
+        updateRow(id, { sha256: sha, short: code, status: "issued", message: "Issued successfully." });
         const [c, h] = await Promise.all([fetchCreditsApi(), fetchHistoryApi()]);
         setCredits(c);
         setHistory(h);
       } catch (e: any) {
         if (e?.status === 401) setAuthError("Not authorized. Please sign in again or check your client API key/tenant.");
-        setRows((prev) => [{ ...prev[0], status: "error", message: e?.message || "Failed to issue" }, ...prev.slice(1)]);
+        updateRow(id, { status: "error", message: e?.message || "Failed to issue" });
+      }
+    },
+    [rememberName, updateRow],
+  );
+
+  const handleFiles = useCallback(
+    async (files: FileList | null) => {
+      if (!files || files.length === 0) return;
+
+      // Filtrar solo PDFs
+      const list = Array.from(files).filter((f) => f.type === "application/pdf" || /\.pdf$/i.test(f.name));
+      if (list.length === 0) return;
+
+      setLoading(true);
+      setAuthError(null);
+
+      try {
+        // Procesar secuencialmente para no quemar la RAM/CPU
+        for (const file of list) {
+          // eslint-disable-next-line no-await-in-loop
+          await processOneFile(file);
+        }
       } finally {
         setLoading(false);
       }
     },
-    [rememberName],
+    [processOneFile],
   );
 
   const onDrop = useCallback(
@@ -284,7 +317,7 @@ export default function ClientPage() {
                 Issue verifiable PDFs in minutes
               </h1>
               <p className="text-base text-slate-200/90">
-                Drop a PDF to mint a sealed copy with a discreet QR badge. Hashing happens in the browser, so the original never leaves your device. The credential registry is updated instantly.
+                Drop one or more PDFs to mint sealed copies with a discreet QR badge. Hashing happens in the browser, so the originals never leave your device. The credential registry is updated instantly.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3 text-sm text-slate-300">
@@ -292,15 +325,7 @@ export default function ClientPage() {
                 <span className="inline-block h-2 w-2 rounded-full bg-emerald-300" aria-hidden />
                 {creditsLabel}
               </div>
-              <a
-                href="/v"
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-xs font-semibold text-slate-100 transition hover:border-white/20 hover:bg-white/20"
-              >
-                Open verifier portal
-                <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
-                  <path d="M6.75 3.5a.75.75 0 0 0 0 1.5h2.69L3.22 11.22a.75.75 0 1 0 1.06 1.06l6.22-6.22v2.69a.75.75 0 0 0 1.5 0V3.5a.75.75 0 0 0-.75-.75h-4.5z" />
-                </svg>
-              </a>
+              {/* Botón “Open verifier portal” eliminado porque /v no tiene index y causa 404 */}
             </div>
           </div>
 
@@ -309,15 +334,15 @@ export default function ClientPage() {
             <ul className="grid gap-3">
               <li className="flex items-start gap-3">
                 <span className="mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-sky-500 text-xs font-semibold text-white">1</span>
-                Drop or pick a PDF to generate a sealed copy with a verification QR.
+                Drop or pick one or more PDFs to generate sealed copies with a verification QR.
               </li>
               <li className="flex items-start gap-3">
                 <span className="mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-sky-500 text-xs font-semibold text-white">2</span>
-                The browser computes the SHA-256 hash of the sealed PDF and registers the credential.
+                The browser computes the SHA-256 hash of each sealed PDF and registers the credential.
               </li>
               <li className="flex items-start gap-3">
                 <span className="mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-sky-500 text-xs font-semibold text-white">3</span>
-                We auto-download the stamped file so you can forward it while the verifier page goes live.
+                We auto-download each stamped file; the verifier page for each CID goes live instantly.
               </li>
             </ul>
           </div>
@@ -333,7 +358,7 @@ export default function ClientPage() {
               <div className="space-y-1.5">
                 <h2 className="text-2xl font-semibold text-white">Upload and seal</h2>
                 <p className="text-sm text-slate-200/80">
-                  Drag a PDF into this panel or click to browse. Every page receives a subtle QR badge anchored to the bottom-right margin.
+                  Drag one or more PDFs into this panel or click to browse. Every page receives a subtle QR badge anchored to the bottom-right margin.
                 </p>
               </div>
               <div className="text-[11px] uppercase tracking-[0.24em] text-slate-400">
@@ -345,7 +370,7 @@ export default function ClientPage() {
               htmlFor="client-pdf-upload"
               className={`${
                 dragActive ? "border-sky-300/70 bg-sky-500/10" : "border-white/15 bg-slate-900/40 hover:border-sky-400/60 hover:bg-slate-900/60"
-              } mt-8 flex min-h=[220px] min-h-[220px] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 py-12 text-center text-sm text-slate-300 transition`}
+              } mt-8 flex min-h-[220px] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 py-12 text-center text-sm text-slate-300 transition`}
               onDragOver={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -366,7 +391,7 @@ export default function ClientPage() {
                     <rect x="3" y="3" width="18" height="18" rx="4" />
                   </svg>
                 </div>
-                <div className="text-lg font-semibold text-white">Drop a PDF to start</div>
+                <div className="text-lg font-semibold text-white">Drop one or more PDFs to start</div>
                 <p className="text-sm text-slate-300/80">We never upload or store your documents; hashing stays on this device.</p>
               </div>
               <input
@@ -374,6 +399,7 @@ export default function ClientPage() {
                 ref={fileInputRef}
                 type="file"
                 accept="application/pdf"
+                multiple
                 className="hidden"
                 onChange={(e) => handleFiles(e.target.files)}
               />
@@ -383,13 +409,13 @@ export default function ClientPage() {
               {loading && (
                 <div className="flex items-center gap-2 text-slate-300">
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-sky-300" aria-hidden />
-                  Processing document…
+                  Processing document{rows.length !== 1 ? "s" : ""}…
                 </div>
               )}
               {authError && <div className="rounded-xl border border-rose-400/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">{authError}</div>}
-              {rows.map((row, index) => (
+              {rows.map((row) => (
                 <article
-                  key={`${row.name}-${index}`}
+                  key={row.id}
                   className="rounded-2xl border border-white/10 bg-slate-900/60 p-5 shadow-inner shadow-black/20"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
@@ -453,7 +479,7 @@ export default function ClientPage() {
               <ul className="space-y-2 text-slate-300/85">
                 <li className="flex gap-3">
                   <span className="mt-1 inline-flex h-1.5 w-1.5 rounded-full bg-sky-300" aria-hidden />
-                  Keep the sealed copy you deliver. The verifier highlights mismatches instantly.
+                  Keep the sealed copies you deliver. The verifier highlights mismatches instantly.
                 </li>
                 <li className="flex gap-3">
                   <span className="mt-1 inline-flex h-1.5 w-1.5 rounded-full bg-sky-300" aria-hidden />
