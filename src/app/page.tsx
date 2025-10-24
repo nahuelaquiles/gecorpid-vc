@@ -4,10 +4,12 @@ import Link from "next/link";
 import { useState } from "react";
 
 /**
- * Landing (dark gradient + glassmorphism) a juego con el área de cliente.
- * - Fondo: bg-slate-950 + capas radiales (como cliente)
- * - Tarjetas: border white/10 + bg white/5 + blur/shadow
- * - Tipografía clara con buen contraste
+ * Landing (dark gradient + glassmorphism) con copy actualizado:
+ * - Local-first (no uploads)
+ * - Hash/QR en el navegador
+ * - Registro guarda solo hash + firma (DID)
+ * - Verificación compara localmente
+ * - Diagrama de flujo privacy-first
  */
 export default function Home() {
   const year = new Date().getFullYear();
@@ -16,7 +18,7 @@ export default function Home() {
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-950 text-slate-100">
-      {/* Degradado radial idéntico al cliente */}
+      {/* Fondo degradado igual que el cliente */}
       <div
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(130%_140%_at_15%_10%,rgba(56,189,248,0.16),transparent_55%),radial-gradient(120%_120%_at_85%_-10%,rgba(165,180,252,0.14),transparent_60%),linear-gradient(180deg,#020617,rgba(2,6,23,0.92))]"
         aria-hidden
@@ -34,9 +36,14 @@ export default function Home() {
             onError={() => setHeroLogoOk(false)}
           />
         )}
+        <div className="mx-auto mb-3 flex max-w-2xl justify-center">
+          <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/40 bg-emerald-500/10 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.28em] text-emerald-200">
+            Local processing — No uploads
+          </span>
+        </div>
         <h1 className="text-4xl font-semibold tracking-tight text-white md:text-5xl">GecorpID</h1>
         <p className="mx-auto mt-2 max-w-xl text-base text-slate-300/90">
-          Verifiable PDFs, made simple.
+          Local-first verifiable PDFs. Your files never leave your device.
         </p>
 
         <div className="mt-6 flex flex-wrap justify-center gap-3">
@@ -69,30 +76,29 @@ export default function Home() {
               <div className="mb-2 inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-sky-300">
                 🧾
               </div>
-              <h3 className="text-base font-semibold text-white">Issue verifiable PDFs</h3>
+              <h3 className="text-base font-semibold text-white">Seal locally (no uploads)</h3>
               <p className="mt-1 text-sm text-slate-300/90">
-                Upload a PDF and get a verification page at <code className="font-mono">/v/&lt;id&gt;</code>.
-                The original file stays immutable.
+                Drop a PDF and we add a discreet QR badge. Hashing (SHA-256) and sealing happen in your browser—nothing is sent to our servers.
               </p>
             </article>
 
             <article className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-2xl shadow-black/30 backdrop-blur">
               <div className="mb-2 inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-indigo-300">
-                🔍
+                🔏
               </div>
-              <h3 className="text-base font-semibold text-white">One-click verification</h3>
+              <h3 className="text-base font-semibold text-white">Register the credential</h3>
               <p className="mt-1 text-sm text-slate-300/90">
-                The QR-stamped copy points to the public page so anyone can validate integrity and issuer authenticity.
+                We register only the file hash, issuance ID and issuer <span className="font-semibold">DID</span>. No document copies are stored.
               </p>
             </article>
 
             <article className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-2xl shadow-black/30 backdrop-blur">
               <div className="mb-2 inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-fuchsia-300">
-                ⏱️
+                🔍
               </div>
-              <h3 className="text-base font-semibold text-white">Clear issuance history</h3>
+              <h3 className="text-base font-semibold text-white">Verify anywhere</h3>
               <p className="mt-1 text-sm text-slate-300/90">
-                The client portal shows “Issued at” timestamps and keeps the most recent items on top.
+                Scan the QR or open <code className="font-mono">/v/&lt;id&gt;</code>. The verifier recomputes the hash <em>locally</em> and compares it to the registry.
               </p>
             </article>
 
@@ -102,81 +108,95 @@ export default function Home() {
               </div>
               <h3 className="text-base font-semibold text-white">Tenants &amp; credits</h3>
               <p className="mt-1 text-sm text-slate-300/90">
-                Multi-tenant, credit-based flow. Start processing when you’re ready—no silent background actions.
+                Multi-tenant, credit-based flow. Issue when you’re ready—no background uploads, ever.
               </p>
             </article>
           </div>
         </section>
 
-        {/* HOW IT WORKS (alto contraste en oscuro) */}
+        {/* HOW IT WORKS — actualizado (local-first) */}
         <section className="mt-8 grid gap-6 rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl shadow-black/40 backdrop-blur">
           <h2 className="text-lg font-semibold text-white">How it works</h2>
           <ol className="grid gap-3">
             <li className="flex items-start gap-3">
-              <span className="mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-sky-500 text-xs font-semibold text-white">
-                1
-              </span>
+              <span className="mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-sky-500 text-xs font-semibold text-white">1</span>
               <div>
-                <h4 className="text-sm font-semibold text-white">Upload</h4>
+                <h4 className="text-sm font-semibold text-white">Seal on your device</h4>
                 <p className="text-sm text-slate-300/90">
-                  Send your PDF. The system stores the original and creates a QR-stamped copy.
+                  You open the PDF locally. We add a QR badge and compute the SHA-256 in the browser. <strong>No upload takes place.</strong>
                 </p>
               </div>
             </li>
             <li className="flex items-start gap-3">
-              <span className="mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-sky-500 text-xs font-semibold text-white">
-                2
-              </span>
+              <span className="mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-sky-500 text-xs font-semibold text-white">2</span>
               <div>
-                <h4 className="text-sm font-semibold text-white">Issue</h4>
+                <h4 className="text-sm font-semibold text-white">Register hash + signature</h4>
                 <p className="text-sm text-slate-300/90">
-                  The issuer signs the credential; a public page at <code className="font-mono">/v/&lt;id&gt;</code> is available immediately.
+                  We register only the hash, issuance ID and issuer DID/signature. The original file never leaves your device.
                 </p>
               </div>
             </li>
             <li className="flex items-start gap-3">
-              <span className="mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-sky-500 text-xs font-semibold text-white">
-                3
-              </span>
+              <span className="mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-sky-500 text-xs font-semibold text-white">3</span>
               <div>
-                <h4 className="text-sm font-semibold text-white">Verify</h4>
+                <h4 className="text-sm font-semibold text-white">Verify with the sealed copy</h4>
                 <p className="text-sm text-slate-300/90">
-                  Anyone can confirm integrity and issuer authenticity—no need to trust a private database.
+                  Recipients scan the QR or open the public page and (optionally) load the sealed PDF. The check runs locally and matches the registry entry.
                 </p>
               </div>
             </li>
           </ol>
         </section>
 
-        {/* WHY VCs */}
-        <section className="mt-8 rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl shadow-black/40 backdrop-blur">
-          <h2 className="text-lg font-semibold text-white">Why Verifiable Credentials?</h2>
-          <ul className="mt-3 grid gap-2 text-slate-300/90">
-            <li className="flex items-start gap-2">
-              <span className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-emerald-400/40 bg-emerald-500/10 text-[13px] font-bold text-emerald-300">
-                ✓
-              </span>
-              Cryptographic signatures prove origin and integrity.
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-emerald-400/40 bg-emerald-500/10 text-[13px] font-bold text-emerald-300">
-                ✓
-              </span>
-              Self-verifiable: no central database dependency.
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-emerald-400/40 bg-emerald-500/10 text-[13px] font-bold text-emerald-300">
-                ✓
-              </span>
-              Tamper-evident: any change breaks verification.
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-emerald-400/40 bg-emerald-500/10 text-[13px] font-bold text-emerald-300">
-                ✓
-              </span>
-              Works even if the original server is offline.
-            </li>
-          </ul>
+        {/* DIAGRAMA DE FLUJO — Privacy-first */}
+        <section className="mt-8">
+          <h2 className="mb-3 text-lg font-semibold text-white">Privacy-first flow</h2>
+          <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
+            {/* Issuer */}
+            <article className="flex-1 rounded-2xl border border-white/10 bg-white/5 p-5 shadow-2xl shadow-black/30 backdrop-blur">
+              <h3 className="text-sm font-semibold text-white">Issuer (your device)</h3>
+              <ul className="mt-2 space-y-1.5 text-sm text-slate-300/90">
+                <li>• Open/drag PDF locally</li>
+                <li>• Seal + QR badge</li>
+                <li>• Compute SHA-256 in browser</li>
+              </ul>
+            </article>
+
+            {/* Arrow */}
+            <div className="hidden items-center justify-center sm:flex">
+              <svg viewBox="0 0 48 16" className="h-6 w-16 text-slate-300/70" aria-hidden>
+                <path d="M0 8h42M42 8l-4-4M42 8l-4 4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+              </svg>
+            </div>
+
+            {/* Registry */}
+            <article className="flex-1 rounded-2xl border border-white/10 bg-white/5 p-5 shadow-2xl shadow-black/30 backdrop-blur">
+              <h3 className="text-sm font-semibold text-white">Credential registry</h3>
+              <ul className="mt-2 space-y-1.5 text-sm text-slate-300/90">
+                <li>• <span className="font-semibold">ID / CID</span></li>
+                <li>• <span className="font-semibold">SHA-256 hash</span></li>
+                <li>• <span className="font-semibold">Issuer DID + signature</span></li>
+                <li>• Status (active / revoked)</li>
+              </ul>
+            </article>
+
+            {/* Arrow */}
+            <div className="hidden items-center justify-center sm:flex">
+              <svg viewBox="0 0 48 16" className="h-6 w-16 text-slate-300/70" aria-hidden>
+                <path d="M0 8h42M42 8l-4-4M42 8l-4 4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+              </svg>
+            </div>
+
+            {/* Verifier */}
+            <article className="flex-1 rounded-2xl border border-white/10 bg-white/5 p-5 shadow-2xl shadow-black/30 backdrop-blur">
+              <h3 className="text-sm font-semibold text-white">Verifier (recipient device)</h3>
+              <ul className="mt-2 space-y-1.5 text-sm text-slate-300/90">
+                <li>• Scan QR / open <code className="font-mono">/v/&lt;id&gt;</code></li>
+                <li>• Recompute hash locally</li>
+                <li>• Compare to registry → authenticity</li>
+              </ul>
+            </article>
+          </div>
         </section>
 
         {/* BRAND / FOOTER */}
