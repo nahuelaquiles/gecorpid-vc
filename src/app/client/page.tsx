@@ -85,7 +85,7 @@ async function callIssueFinal(body: { cid: string; sha256: string; doc_type: str
     body: JSON.stringify(body),
   });
   const ct = res.headers.get("content-type") || "";
-  the const data = ct.includes("application/json") ? await res.json() : { error: await res.text() };
+  const data = ct.includes("application/json") ? await res.json() : { error: await res.text() }; // <- corregido
   if (!res.ok) throw new Error((data as any)?.error || "issue-final failed");
   return data as { cid: string; sha256: string; doc_type: string; issued_at: string | null };
 }
@@ -114,13 +114,7 @@ async function fetchHistoryApi() {
  * Smaller QR, label text above, and a clickable link area.
  */
 async function stampPdfWithQrBadge(originalBytes: ArrayBuffer, verifyUrl: string): Promise<Uint8Array> {
-  const {
-    PDFDocument,
-    rgb,
-    StandardFonts,
-    PDFName,
-    PDFString,
-  } = await import("pdf-lib");
+  const { PDFDocument, rgb, StandardFonts, PDFName, PDFString } = await import("pdf-lib");
   const qrMod: any = await import("qrcode");
   const QRCode = qrMod?.default ?? qrMod;
 
@@ -154,8 +148,8 @@ async function stampPdfWithQrBadge(originalBytes: ArrayBuffer, verifyUrl: string
   const dims = png.scale(scale);
 
   // Medidas del "plate" (tarjeta blanca) que contiene etiqueta + QR
-  const pad = 6;     // margen interno
-  const gap = 3;     // espacio entre label y QR
+  const pad = 6; // margen interno
+  const gap = 3; // espacio entre label y QR
   const labelWidth = font.widthOfTextAtSize(label, fontSize);
   const plateInnerWidth = Math.max(dims.width, labelWidth);
   const plateWidth = plateInnerWidth + pad * 2;
@@ -601,8 +595,7 @@ export default function ClientPage() {
                   {history.map((r, i) => {
                     const code = shortHash(r.sha256 || "");
                     const date = formatDate(r.issued_at);
-                    const localName =
-                      r.doc_filename || (r.cid && nameMap[r.cid]) || "(local name unavailable)";
+                    const localName = r.doc_filename || (r.cid && nameMap[r.cid]) || "(local name unavailable)";
 
                     return (
                       <tr key={i} className="border-t border-white/10 text-slate-200/90">
